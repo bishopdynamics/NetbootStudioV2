@@ -1,0 +1,97 @@
+#!ipxe
+# shellcheck disable=SC2239,SC2046,SC2154,SC2086,SC1132,SC2031,SC2030,SC2015
+
+# Netboot Studio stage1.ipxe
+# 	to be embedded in ipxe binaries
+
+#    This file is part of Netboot Studio, a system for managing netboot clients
+#    Copyright (C) 2019 James Bishop (jamesbishop2006@gmail.com)
+
+
+
+
+:setup-network
+echo Netboot Studio
+echo If booted from removable media, it can be removed now
+
+echo
+echo Configuring Network...
+# http://ipxe.org/cfg/user-class
+# Length 4, value 'i' (0x69), 'P' (0x50), 'X' (0x48), 'E' (0x45)
+set user-class:hex 04:69:50:48:45
+time dhcp || goto network-failed
+
+# TODO gateway is presumed to be ntp server address as well
+set ntp-server ${gateway}
+
+# lets take care of the clock
+set time-prior-to-ntp ${unixtime}
+echo syncing to ntp server: ${ntp-server}
+ntp ${ntp-server} || goto failed
+echo unixtime was ${time-prior-to-ntp}, now: ${unixtime}
+# shellcheck disable=SC2004
+echo to decode, run on your terminal: date --date=@$((${unixtime}))
+echo
+
+:chain-next-stage
+# TODO setting up a linux kernel with our certificate chain trusted is difficult, so stage2 and later must be http for now
+# TODO when we do https again, remember the cert needs to be valid for ip as well
+set stage-2-url http://${next-server}:8082/stage2.ipxe?mac=${mac}&buildarch=${buildarch}&platform=${platform}&manufacturer=${manufacturer}&chip=${chip}&ip=${ip}&uuid=${uuid}&serial=${serial}&product=${product}&version=${version}&unixtime=${unixtime}&asset=${asset}
+echo Chaining Stage 2
+sleep 1
+imgexec ${stage-2-url} || goto failed
+
+
+################### FALLBACK MENU ###################
+:fallback-menu
+isset ${menu-timeout} || set menu-timeout 0
+set submenu-timeout ${menu-timeout}
+isset ${menu-default} || set menu-default chain-next-stage
+menu Stage 1 Troubleshooting Menu
+isset ${ip} && item --gap -- ------ ip: ${ip} MAC: ${mac} ------- || item --gap -- ------ NO NETWORK!!! -------
+item --gap --
+################### list items here ###################
+item chain-next-stage Enter Stage 2
+item setup-network Re-Attempt Network Auto-Configure
+item interactive-shell  iPXE Shell
+item interactive-config iPXE Config
+item reboot Reboot
+item exit Exit
+################### end of items list ###################
+choose --default ${menu-default} --timeout ${menu-timeout} target && goto ${target}
+
+
+# advanced
+:interactive-shell
+echo dropping to iPXE Shell
+shell || goto failed
+goto fallback-menu
+
+:interactive-config
+echo dropping to interactive config
+config || goto failed
+goto fallback-menu
+
+:ntp-failed
+echo Failed to sync to ntp server with ip: ${ntp-server}
+echo This is needed for proper certificate validation for HTTPS, so this needs to be fixed
+prompt Press any key to show troubleshooting menu ||
+goto fallback-menu
+
+:failed
+echo Something failed, hopefully errors are printed above this
+prompt Press any key to show troubleshooting menu ||
+goto fallback-menu
+
+:network-failed
+echo Failed to auto-configure networking
+echo Second stage will not work!
+prompt Press any key to show troubleshooting menu ||
+goto fallback-menu
+
+:reboot
+echo rebooting
+reboot
+
+:exit
+exit 0

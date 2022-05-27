@@ -1,0 +1,16 @@
+# requirements for this project
+websockets
+yattag
+aiohttp == 3.7.4.post0
+aiohttp_tus
+aiohttp-middlewares
+cryptography
+attr
+pyyaml
+py3tftp
+mysql-connector-python
+scapy
+paho-mqtt
+Sphinx
+rinohtype
+watchdog

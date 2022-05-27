@@ -1,0 +1,73 @@
+#!ipxe
+
+dhcp || echo network setup failed
+sleep 2
+################### FALLBACK MENU ###################
+:fallback-menu
+isset ${menu-timeout} || set menu-timeout 0
+set submenu-timeout ${menu-timeout}
+isset ${menu-default} || set menu-default interactive-shell
+menu Stage 1 Troubleshooting Menu
+isset ${ip} && item --gap -- ------ ip: ${ip} MAC: ${mac} ------- || item --gap -- ------ NO NETWORK!!! -------
+item --gap --
+################### list items here ###################
+item retry-network      Retry Network Autoconfig
+item interactive-shell  iPXE Shell
+item interactive-config iPXE Config
+item show-info Show Machine Information
+item reboot Reboot
+item exit Exit
+################### end of items list ###################
+choose --default ${menu-default} --timeout ${menu-timeout} target && goto ${target}
+
+
+:retry-network
+dhcp || echo network autoconfig failed
+prompt Press any key to continue
+goto fallback-menu
+
+:show-info
+show version ||
+show manufacturer ||
+show product ||
+show serial ||
+show asset ||
+show buildarch ||
+show platform ||
+show memsize ||
+show unixtime ||
+show uuid ||
+show bustype ||
+show busloc ||
+show busid ||
+show chip ||
+show mac ||
+show ip ||
+show netmask ||
+show gateway ||
+show dns ||
+show domain ||
+show user-class ||
+show root-path ||
+show next-server ||
+show filename ||
+prompt Press any key to continue
+goto fallback-menu
+
+# advanced
+:interactive-shell
+echo dropping to iPXE Shell
+shell
+goto fallback-menu
+
+:interactive-config
+echo dropping to interactive config
+config
+goto fallback-menu
+
+:reboot
+echo rebooting
+reboot
+
+:exit
+exit 0

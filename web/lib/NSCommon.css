@@ -1,0 +1,111 @@
+/* this is the css used by the base html pages. everything else is done in javascript */
+
+/* left side nav bar */
+.main-nav {
+    position: absolute;
+    width: 300px;
+    bottom: 364px;
+    top: 64px;
+    left: 0;
+    padding-top: 10px;
+    overflow: scroll;
+}
+
+.main-nav-button {
+    width: 280px !important;
+}
+
+.main-nav-label {
+    font-size: medium;
+    font-weight: bold;
+}
+
+
+/* Div wrapping main content, to allow a dropshadow */
+.main-content-wrapper {
+    overflow: scroll;
+    position: absolute;
+    top: 64px;
+    bottom: 364px;
+    left: 300px;
+    right: 0;
+}
+
+/* this is a tab, it is what casts a dropshadow */
+.main-body-content-tab {
+    overflow: scroll;
+    position: absolute;
+    top: 10px;
+    bottom: 10px;
+    left: 10px;
+    right: 10px;
+    padding: 15px;
+}
+
+/* div where actual content is placed */
+.main-content {
+    margin: 10px;
+}
+
+
+/* at the bottom */
+.main-tasklist {
+    position: absolute;
+    bottom: 64px;
+    left: 0;
+    right: 0;
+    height: 300px;
+    padding: 10px;
+}
+
+/* this is the header's actual head element */
+.tasklist-table-head {
+    height: 5px;
+}
+
+/* rows in the actual task table*/
+.tasklist-table tr {
+    height: 7px;
+}
+
+
+/* modifiers for all buttons */
+.btn {
+    margin: 5px 10px;
+}
+
+/* add class hidden to anything to make it invisible */
+.hidden {
+    display: none;
+}
+
+
+/* the loader is wrapped inside this div*/
+.loader-body-content {
+    overflow: scroll;
+    position: absolute;
+    top: 64px;
+    bottom: 364px;
+    left: 300px;
+    right: 0;
+}
+
+/* the actual loading icon */
+.loader {
+    border: 16px solid #b0bec5; /* materialize blue-grey lighten-3 */
+    border-top: 16px solid #607d8b; /* materialize blue-grey */
+    border-radius: 50%;
+    width: 30vw;
+    height: 30vw;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    margin-left: -15vw;
+    margin-top: -15vw;
+    animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

@@ -1,0 +1,7 @@
+.git
+.gitignore
+certs
+venv
+Dockerfile*
+docker-compose*
+README.md

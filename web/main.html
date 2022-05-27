@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<title>Netboot Studio</title>
+	<meta name="viewport" content="width = device-width, initial-scale = 1" />
+	<meta charset="utf-8" />
+	<!-- external dependencies -->
+	<link href="lib/external/materialize.min.css" rel="stylesheet" />
+	<link href="lib/external/material-icons.css" rel="stylesheet" />
+	<link href="lib/external/uppy.min.css" rel="stylesheet" />
+	<!-- Netboot Studio stuff -->
+	<link href="lib/NSCommon.css" rel="stylesheet" />
+	<div id="static-header" style="z-index:100;">
+		<nav>
+			<div class="nav-wrapper blue-grey" style="width:100vw">
+				<label class="brand-logo" >&nbsp &nbspNetboot Studio</label>
+			</div>
+		</nav>
+	</div>
+</head>
+<body>
+	<div id="page-body-modal-container" class="page-body-modal-container">
+		<div id="common-modal" class="modal">
+			<div id="common-modal-content" class="modal-content">
+				<h4 id="modal-title">Modal Title</h4>
+				<h6 id="modal-subtitle">Modal Subtitle</h6>
+				<div id="modal-content"></div>
+			</div>
+			<div id="modal-footer" class="modal-footer">
+			</div>
+		</div>
+	</div>
+	<div id="page-body-content-container" class="page-body-content-container">
+		<div id="loader-body-content">
+			<div class="loader"></div>
+		</div>
+		<div id="login-body-content" class="hidden">
+			<main class="main-style container">
+				<div>&nbsp&nbsp</div>
+				<form class="">
+					<div class="row">
+						<div class="input-field">
+							<input id="user_name" type="email" autocorrect="off" autocapitalization="none" autofocus="True" />
+							<label for="user_name">User</label>
+						</div>
+					</div>
+					<div class="row">
+						<div class="input-field">
+							<input id="user_password" type="password" />
+							<label for="user_password">Password</label>
+						</div>
+					</div>
+					<div class="row">
+						<a id="submit_button" class="waves-effect waves-light btn" onclick="doLoginRequest()">Login</a>
+					</div>
+				</form>
+			</main>
+		</div>
+		<div id="main-body-content" class="main-body-content hidden">
+			<div>
+				<div class="blue-grey lighten-2 center-align main-nav">
+					<div class="row">
+						<span class="main-nav-label">Basic</span>
+					</div>
+					<div class="row">
+						<span class="waves-effect waves-light btn main-nav-button blue-grey" onclick="main_body_nav_onclick('clients');">Clients</span>
+					</div>
+					<div class="row">
+						<span class="waves-effect waves-light btn main-nav-button blue-grey" onclick="main_body_nav_onclick('client_status');">Client Status</span>
+					</div>
+					<div class="row">
+						<span class="waves-effect waves-light btn main-nav-button blue-grey" onclick="main_body_nav_onclick('boot_images');">Boot Images</span>
+					</div>
+					<div class="row">
+						<span class="waves-effect waves-light btn main-nav-button blue-grey" onclick="main_body_nav_onclick('unattended_configs');">Unattended Configs</span>
+					</div>
+					<div class="row">
+						<span class="waves-effect waves-light btn main-nav-button blue-grey" onclick="main_body_nav_onclick('stage4');">Stage4 Scripts</span>
+					</div>
+					<div class="row">
+						<span class="main-nav-label">Advanced</span>
+					</div>
+					<div class="row">
+						<span class="waves-effect waves-light btn main-nav-button blue-grey" onclick="main_body_nav_onclick('ipxe_builds');">iPXE Builds</span>
+					</div>
+<!--					<div class="row">-->
+<!--						<span class="waves-effect waves-light btn main-nav-button blue-grey" onclick="main_body_nav_onclick('wimboot_builds');">Wimboot Builds</span>-->
+<!--					</div>-->
+					<div class="row">
+						<span class="waves-effect waves-light btn main-nav-button blue-grey" onclick="main_body_nav_onclick('stage1_files');">iPXE Stage1 Files</span>
+					</div>
+					<div class="row">
+						<span class="waves-effect waves-light btn main-nav-button blue-grey" onclick="main_body_nav_onclick('uboot_scripts');">Custom u-boot Scripts</span>
+					</div>
+					<div class="row">
+						<span class="waves-effect waves-light btn main-nav-button blue-grey" onclick="main_body_nav_onclick('iso');">ISO Files</span>
+					</div>
+<!--					<div class="row">-->
+<!--						<span class="waves-effect waves-light btn main-nav-button blue-grey" onclick="main_body_nav_onclick('tftp_root');">TFTP Root</span>-->
+<!--					</div>-->
+					<div class="row">
+						<span class="waves-effect waves-light btn main-nav-button blue-grey" onclick="main_body_nav_onclick('settings');">Settings</span>
+					</div>
+					<div class="row">
+						<span class="waves-effect waves-light btn main-nav-button blue-grey" onclick="main_body_nav_onclick('debugging');">Debugging</span>
+					</div>
+				</div>
+				<div class="main-content-wrapper blue-grey lighten-3" id="main-content-wrapper">
+					<div class="z-depth-4 main-content" id="main-content">
+						<div class="main-body-content-tab blue-grey lighten-5" id="main-body-content-tab-ipxe_builds" style="display:none;">
+							<div>
+								<h2>Manage iPXE Builds</h2>
+								<div>iPXE is a network bootloader, and the first executable in our netbooting chain. You need at least one build with the default stage1 file for each client architecture you intend to boot.</div>
+								<div>
+									<a class="waves-effect waves-light modal-trigger btn blue-grey" href="#!" onclick="show_modal_newbuild();">New</a>
+								</div>
+								<div id="main-body-content-tab-ipxe_builds-content-wrapper">
+									<div id="main-body-content-tab-ipxe_builds-table-wrapper"></div>
+								</div>
+							</div>
+						</div>
+						<div class="main-body-content-tab blue-grey lighten-5" id="main-body-content-tab-stage1_files" style="display:none;">
+							<div>
+								<h2>Manage iPXE Stage1 Files</h2>
+								<div>Stage1 files are embedded into iPXE builds, and provide the foundation for fetching Boot Images. In most cases, the built-in default Stage1 file is all that is needed.</div>
+								<div>
+									<a class="waves-effect waves-light modal-trigger btn blue-grey" href="#!">New</a>
+									<a class="waves-effect waves-light modal-trigger btn blue-grey" href="#!" onclick="show_modal_upload('stage1_files');" >Upload</a>
+								</div>
+								<div id="main-body-content-tab-stage1_files-content-wrapper">
+									<div id="main-body-content-tab-stage1_files-table-wrapper"></div>
+								</div>
+							</div>
+						</div>
+						<div class="main-body-content-tab blue-grey lighten-5" id="main-body-content-tab-stage4" style="display:none;">
+							<div>
+								<h2>Manage Stage4 Files</h2>
+								<div>Stage4 is a post-installation config system, based on simple shell scripts on unix-like systems, and batch scripts on windows systems.</div>
+								<div>
+									<a class="waves-effect waves-light modal-trigger btn blue-grey" href="#!">New</a>
+									<a class="waves-effect waves-light modal-trigger btn blue-grey" href="#!" onclick="show_modal_upload('stage4');" >Upload</a>
+								</div>
+								<div id="main-body-content-tab-stage4-content-wrapper">
+									<div id="main-body-content-tab-stage4-table-wrapper"></div>
+								</div>
+							</div>
+						</div>
+						<div class="main-body-content-tab blue-grey lighten-5" id="main-body-content-tab-boot_images" style="display:none;">
+							<div>
+								<h2>Manage Boot Images</h2>
+								<div>Boot Images hold everything needed to boot a specific operating system, in most cases an installer. Boot Images can also create live environments for diskless workstations</div>
+								<div>
+									<a class="waves-effect waves-light modal-trigger btn blue-grey" href="#!">New</a>
+								</div>
+								<div id="main-body-content-tab-boot_images-content-wrapper">
+									<div id="main-body-content-tab-boot_images-table-wrapper"></div>
+								</div>
+							</div>
+						</div>
+						<div class="main-body-content-tab blue-grey lighten-5" id="main-body-content-tab-unattended_configs" style="display:none;">
+							<div>
+								<h2>Manage Unattended Installation Configurations</h2>
+								<div>When combined with a Boot Image which supports unattended installation, an unattended config file can completely automate the installation of an operating system. Note that for most operating systems, any needed config that is not addressed by your config file, will cause it to prompt for user input, so you really need to specify answers to all configuration options</div>
+								<div>
+									<a class="waves-effect waves-light modal-trigger btn blue-grey" href="#!">New</a>
+									<a class="waves-effect waves-light modal-trigger btn blue-grey" href="#!" onclick="show_modal_upload('unattended_configs');" >Upload</a>
+								</div>
+								<div id="main-body-content-tab-unattended_configs-content-wrapper">
+									<div id="main-body-content-tab-unattended_configs-table-wrapper"></div>
+								</div>
+							</div>
+						</div>
+						<div class="main-body-content-tab blue-grey lighten-5" id="main-body-content-tab-clients" style="display:none;">
+							<div>
+								<h2>Manage Clients</h2>
+								<div>Manage how individual clients should behave when they boot from network</div>
+								<div></div>
+								<div id="main-body-content-tab-clients-content-wrapper">
+									<div id="main-body-content-tab-clients-table-wrapper"></div>
+								</div>
+							</div>
+						</div>
+						<div class="main-body-content-tab blue-grey lighten-5" id="main-body-content-tab-uboot_scripts" style="display:none;">
+							<div>
+								<h2>Manage Custom u-boot Scripts</h2>
+								<div>When a u-boot client tries to netboot, the first thing it fetches is boot.scr.uimg from tftp server. This is a great place to setup environment variables for these clients. Netboot Studio does not use this feature (the default is a blank script) but you can specify a custom script here.</div>
+								<div>
+									<a class="waves-effect waves-light modal-trigger btn blue-grey" href="#!">New</a>
+									<a class="waves-effect waves-light modal-trigger btn blue-grey" href="#!" onclick="show_modal_upload('uboot_scripts');" >Upload</a>
+								</div>
+								<div id="main-body-content-tab-uboot_scripts-content-wrapper">
+									<div id="main-body-content-tab-uboot_scripts-table-wrapper"></div>
+								</div>
+							</div>
+						</div>
+						<div class="main-body-content-tab blue-grey lighten-5" id="main-body-content-tab-iso" style="display:none;">
+							<div>
+								<h2>ISO Files</h2>
+								<div>For some boot image creation tasks (like Windows), one needs to start with an ISO file. Custom boot images can also attempt to boot an ISO file directly.</div>
+								<div>
+									<a class="waves-effect waves-light modal-trigger btn blue-grey" href="#!" onclick="show_modal_upload('iso');" >Upload</a>
+								</div>
+								<div id="main-body-content-tab-iso-content-wrapper">
+									<div id="main-body-content-tab-iso-table-wrapper"></div>
+								</div>
+							</div>
+						</div>
+						<div class="main-body-content-tab blue-grey lighten-5" id="main-body-content-tab-wimboot_builds" style="display:none;">
+							<div>
+								<h2>Manage wimboot Builds</h2>
+								<div>wimboot is a binary brought to you by the folks at iPXE, which lets makes netbooting a Windows installer MUCH better</div>
+								<div>
+									<a class="waves-effect waves-light modal-trigger btn blue-grey" href="#!">New</a>
+								</div>
+								<div id="main-body-content-tab-wimboot_builds-content-wrapper">
+									<div id="main-body-content-tab-wimboot_builds-table-wrapper"></div>
+								</div>
+							</div>
+						</div>
+						<div class="main-body-content-tab blue-grey lighten-5" id="main-body-content-tab-tftp_root" style="display:none;">
+							<div>
+								<h2>Manage files in TFTP root</h2>
+								<div>Place other files you need available via TFTP here, such as switch configs and images, and dtb files for arm-based clients. Keep in mind that boot.scr.uimg and ipxe.efi are reserved filenames and will be ignored if you place them here.</div>
+								<div>
+									<a class="waves-effect waves-light modal-trigger btn blue-grey" href="#!" onclick="show_modal_upload('tftp_root');" >Upload</a>
+								</div>
+								<div id="main-body-content-tab-tftp_root-content-wrapper">
+									<div id="main-body-content-tab-tftp_root-table-wrapper"></div>
+								</div>
+							</div>
+						</div>
+						<div class="main-body-content-tab blue-grey lighten-5" id="main-body-content-tab-settings" style="display:none;">
+							<h2>Settings</h2>
+							<div></div>
+							<div>
+								<a class="waves-effect waves-light modal-trigger btn blue-grey" href="#!" onclick="show_modal_settings();">Edit Settings</a>
+							</div>
+						</div>
+						<div class="main-body-content-tab blue-grey lighten-5" id="main-body-content-tab-debugging" style="display:none;">
+							<h2>Debugging </h2>
+							<div>This page should not normally be visible</div>
+							<div>
+								<a class="waves-effect waves-light modal-trigger btn blue-grey" href="#!" onclick="create_task('fake_longtask');" >Fake Long Task</a>
+							</div>
+							<div>
+								<h4>Client_Status</h4>
+								<div id=""></div>
+							</div>
+						</div>
+						<div class="main-body-content-tab blue-grey lighten-5" id="main-body-content-tab-client_status" style="display:none;">
+							<h2>Client Status </h2>
+							<div>Any clients that are in the process of netbooting will show their status here</div>
+							<div class="client_status_content blue-grey lighten-4" id="client_status_content">
+								Status table will go here
+							</div>
+							<div></div>
+						</div>
+					</div>
+				</div>
+				<div class="main-tasklist blue-grey lighten-4" id="main-tasklist">
+				</div>
+			</div>
+		</div>
+	</div>
+	<!--  external dependencies	-->
+	<script src="lib/external/materialize.min.js"></script>
+	<script src="lib/external/jquery-3.6.0.js"></script>
+	<script src="lib/external/uppy.min.js"></script>
+	<script src="lib/external/jquery.json-editor.min.js"></script>
+	<script src="lib/external/list.min.js"></script>
+	<script src="lib/external/mqtt.min.js"></script>
+	<!-- Netboot Studio stuff -->
+	<script src="variables.js"></script>
+	<script src="lib/NSCommon.js"></script>
+	<script src="lib/NSGUI.js"></script>
+	<script src="lib/NSAuth.js"></script>
+	<script src="lib/NSUploader.js"></script>
+	<script src="lib/NSMain.js"></script>
+	<script src="lib/NSDataSourceTable.js"></script>
+	<script src="lib/NSFancyList.js"></script>
+	<script src="lib/NSModal.js"></script>
+	<script src="lib/NSDataSource.js"></script>
+</body>
+<footer class="page-footer blue-grey" style="position:fixed;bottom:0;left:0;width:100vw;">
+	<div class="footer-copyright">
+		<div class="container">
+			<span id="footer-copyright">(C)</span>
+		</div>
+	</div>
+</footer>
+</html>

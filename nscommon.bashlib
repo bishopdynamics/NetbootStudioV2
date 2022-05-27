@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# Netboot Studio common shell functions
+
+# we dont use bail() here
+
+# check if we are running as root, and quit if not
+function check_root () {
+  if [ "$(id -u)" -gt 0 ]; then
+    echo "need to run as root"
+    exit 1
+  fi
+}
+
+# we can set flags by name, which just touches a file
+function set_flag () {
+  local FLAG_NAME="$1"
+  touch "/opt/flag-netbootstudio-${FLAG_NAME}"
+}
+
+# unsetting a flag is just removing that file we touched before
+function unset_flag () {
+  local FLAG_NAME="$1"
+  rm "/opt/flag-netbootstudio-${FLAG_NAME}" || {
+    # we dont tolerate unsetting flags that arent set, to encourage scripts to do things correctly
+    echo "tried to unset a flag that was not set!"
+    exit 1
+  }
+}
+
+# check if a flag is set (the file exists)
+# usage: check_flag_set "first_time_setup_failed" && echo "the flag is set"
+#        check_flag_set "first_time_setup_failed" || echo "the flag is not set"
+function check_flag_set () {
+  local FLAG_NAME="$1"
+  if [ ! -f "/opt/flag-netbootstudio-${FLAG_NAME}" ]; then
+    return 1
+  else
+    return 0
+  fi
+}
+
+function get_ip_address () {
+  python3 - << 'EOF_PYTHON'
+import socket
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.connect(("8.8.8.8", 80))
+print(s.getsockname()[0])
+s.close()
+EOF_PYTHON
+}
+
+function generate_uuid () {
+  python3 - << 'EOF_PYTHON'
+import uuid
+my_id = uuid.uuid4()
+print(my_id)
+EOF_PYTHON
+}
+
+# say something loudly. draw some fucking attention
+function announce () {
+  local MESSAGE="$*"
+  echo "##################################################################################################################################################################"
+  echo "######                  $MESSAGE"
+  echo "##################################################################################################################################################################"
+}
+
+# say something above a whisper, but not particularly loudly
+function takenote () {
+  local MESSAGE="$*"
+  echo ""
+  echo "############### Note:   $MESSAGE"
+}
+
+# check if we have certs, doubles as a way to print the certs info at end of first_time_setup
+function check_certs () {
+  if [ ! -f "/opt/NetbootStudio/certs/server_cert.pem"  ] || [ ! -f "/opt/NetbootStudio/certs/server_key.key"  ] || [ ! -f "/opt/NetbootStudio/certs/ca_cert.pem"  ] || [ ! -f "/opt/NetbootStudio/certs/full_chain.pem"  ]; then
+    echo ""
+    echo "####################    Important!!  ######################################################"
+    echo ""
+    echo "  Missing certificates!!"
+    echo ""
+    echo "  You must place certificate files in /opt/NetbootStudio/certs/"
+    echo "   server_cert.pem (server certificate)"
+    echo "   server_key.key (server key)"
+    echo "   ca_cert.pem (ca certificate)"
+    echo "   full_chain.pem (server + ca chain certificate)"
+    echo ""
+    echo "  Create full_chain.pem by doing: cat server_cert.pem ca_cert.pem > full_chain.pem"
+    echo ""
+    echo "##########################################################################################"
+    echo ""
+    return 1
+  else
+    return 0
+  fi
+}

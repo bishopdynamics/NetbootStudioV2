@@ -1,0 +1,10 @@
+.DS_Store
+*.pyc
+tmp/*
+venv/*
+certs/*
+boot.scr.uimg
+local_environment.sh
+docker-compose.yml
+.idea
+
