@@ -1,10 +1,10 @@
 .DS_Store
 *.pyc
-tmp/*
-venv/*
-certs/*
+tmp
+venv
+certs
 boot.scr.uimg
 local_environment.sh
 docker-compose.yml
 .idea
-
+__pycache__

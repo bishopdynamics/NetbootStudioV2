@@ -4,7 +4,7 @@ Netboot Studio Service: File Upload Server
 """
 
 #    This file is part of Netboot Studio, a system for managing netboot clients
-#    Copyright (C) 2020-2021 James Bishop (james@bishopdynamics.com)
+#    Copyright (C) 2020-2023 James Bishop (james@bishopdynamics.com)
 
 # A note from Bishop, Feb 5, 2021
 #
@@ -119,7 +119,7 @@ class NSUploadService(NSService):
         try:
             # origin = 'broker'
             if topic == 'upload':
-                logging.info('received a message on teh upload topic: %s' % msg)
+                logging.info('received a message on the upload topic: %s' % msg)
         except Exception as ex:
             logging.error('Unexpected Exception while mqtt_receive: %s', ex)
 

@@ -4,7 +4,7 @@ Netboot Studio Service Base Class
 """
 
 #    This file is part of Netboot Studio, a system for managing netboot clients
-#    Copyright (C) 2020-2021 James Bishop (james@bishopdynamics.com)
+#    Copyright (C) 2020-2023 James Bishop (james@bishopdynamics.com)
 
 
 import sys
@@ -19,7 +19,6 @@ from configparser import RawConfigParser
 
 from collections import OrderedDict
 from NSCommon import get_version, build_paths, check_config
-from NSClientManager import NSClientManager
 
 
 class NSService:

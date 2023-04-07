@@ -1,0 +1,95 @@
+#!ipxe
+
+# Some examples of how to create your own ipxe scripts that Netboot Studio can use as boot_images
+
+
+
+############## Start Preamble #############
+# Netboot Studio will generate a preamble, which will define the following variables for you to use in your script
+#   Avoid hardcoding any paths by referencing these variables in your custom scripts
+
+
+# arch
+# netboot-studio-server
+# stage-server
+# iso-images
+# iso-images-nfs 
+# boot-images
+# boot-images-nfs-noproto
+# boot-images-nfs
+# stage-2-url
+# unattended-url-linux
+# unattended-url-windows
+# wimboot-path
+# windows-mount-cmd-url
+
+############# End Preamble ###########
+
+
+
+
+
+
+########### Example: Loading Windows using wimboot ##############
+
+# This is how you would boot a Windows installer
+
+# first load wimboot, which will parse and correct paths within windows boot records, so that they work correctly via netboot
+imgload ${wimboot-path} || goto failed
+
+# attempt to fetch some fonts, but dont worry if they fail to load
+imgfetch ${boot-image-path}/boot/fonts/segmono_boot.ttf  segmono_boot.ttf ||
+imgfetch ${boot-image-path}/boot/fonts/segoe_slboot.ttf  segoe_slboot.ttf ||
+imgfetch ${boot-image-path}/boot/fonts/segoen_slboot.ttf segoen_slboot.ttf ||
+imgfetch ${boot-image-path}/boot/fonts/wgl4_boot.ttf     wgl4_boot.ttf ||
+
+# fetch some extra files, which mount the installer folder via SMB an then launch the installer from there 
+imgfetch ${boot-image-path}/startnet.cmd startnet.cmd || goto failed
+imgfetch ${windows-mount-cmd-url} mount.cmd || goto failed
+imgfetch ${boot-image-path}/winpeshl.ini winpeshl.ini|| goto failed
+
+# fetch the windows bootloader and boot record
+imgfetch ${boot-image-path}/boot/bcd BCD || goto failed
+imgfetch ${boot-image-path}/boot/boot.sdi boot.sdi || goto failed
+
+# fetch the actual boot image
+imgfetch -n boot.wim ${boot-image-path}/sources/boot.wim boot.wim || goto failed
+
+# execute!
+imgexec || goto failed
+
+
+
+
+
+
+
+########### Example: Loading Debian Installer from the web ##############
+
+# in this example, the only thing we store locally is this script file. 
+#   The kernel and initrd are fetched from the web
+
+
+#  setup some more vars
+set debian-release bullseye
+set boot-image-path ${debian-mirror}/dists/${debian-release}/main/installer-${arch}/current/images/netboot/debian-installer/${arch}
+set extra-kernel-args ipv6.disable=1 IPV6_DISABLE=1 net.ifnames=0 biosdevname=0
+iseq ${arch} arm64 && set extra-kernel-args ${extra-kernel-args} console=tty1 console=ttyS2,1500000 ||
+set this-image-args initrd=initrd.gz vga=788 debian-installer/locale=en_US keymap=us hw-detect/load_firmware=false --- ${extra-kernel-args}
+
+# now just fetch kernel and initrd, load kernel, and execute it with our arguments
+imgfree
+imgfetch ${boot-image-path}/linux || goto failed
+imgfetch ${boot-image-path}/initrd.gz || goto failed
+imgload linux || goto failed
+imgargs linux ${this-image-args} || goto failed
+imgexec || goto failed
+
+
+
+
+
+
+################################ Trailer
+
+# after your script, Netboot Studio will append some code to catch and handle errors, try to print useful debugging information, etc

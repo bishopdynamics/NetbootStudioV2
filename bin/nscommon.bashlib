@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# Netboot Studio common shell functions
+
+# we dont use bail() here
+
+# check if we are running as root, and quit if not
+function check_root () {
+  if [ "$(id -u)" -gt 0 ]; then
+    echo "need to run as root"
+    exit 1
+  fi
+}
+
+# we can set flags by name, which just touches a file
+function set_flag () {
+  local FLAG_NAME="$1"
+  touch "/opt/flag-netbootstudio-${FLAG_NAME}"
+}
+
+# unsetting a flag is just removing that file we touched before
+function unset_flag () {
+  local FLAG_NAME="$1"
+  rm "/opt/flag-netbootstudio-${FLAG_NAME}" || {
+    # we dont tolerate unsetting flags that arent set, to encourage scripts to do things correctly
+    echo "tried to unset a flag that was not set!"
+    exit 1
+  }
+}
+
+# check if a flag is set (the file exists)
+# usage: check_flag_set "first_time_setup_failed" && echo "the flag is set"
+#        check_flag_set "first_time_setup_failed" || echo "the flag is not set"
+function check_flag_set () {
+  local FLAG_NAME="$1"
+  if [ ! -f "/opt/flag-netbootstudio-${FLAG_NAME}" ]; then
+    return 1
+  else
+    return 0
+  fi
+}
+
+function get_ip_address () {
+  python3 - << 'EOF_PYTHON'
+import socket
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.connect(("8.8.8.8", 80))
+print(s.getsockname()[0])
+s.close()
+EOF_PYTHON
+}
+
+function generate_uuid () {
+  python3 - << 'EOF_PYTHON'
+import uuid
+my_id = uuid.uuid4()
+print(my_id)
+EOF_PYTHON
+}
+
+# say something loudly. draw some fucking attention
+function announce () {
+  local MESSAGE="$*"
+  echo "##################################################################################################################################################################"
+  echo "######                  $MESSAGE"
+  echo "##################################################################################################################################################################"
+}
+
+# say something above a whisper, but not particularly loudly
+function takenote () {
+  local MESSAGE="$*"
+  echo ""
+  echo "############### Note:   $MESSAGE"
+}
+
+function install_docker_repo () {
+  if [ ! -f /etc/apt/sources.list.d/docker.list ]; then
+    takenote "adding docker repo: https://download.docker.com/linux/debian"
+    curl -fsSl https://download.docker.com/linux/debian/gpg |apt-key add -qq - || bail "failed to add apt key for docker repo"
+    echo "deb [arch=$(dpkg --print-architecture)] https://download.docker.com/linux/debian $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list || bail "failed to create docker repo list file"
+    apt-get update || bail "failed to update after adding repo"
+  else
+    echo "docker repo already installed"
+  fi
+}
+
+# check if we have certs, doubles as a way to print the certs info at end of first_time_setup
+function check_certs () {
+  local config_path="$1"
+  takenote "Checking certs"
+  if [ -z "$config_path" ] || [ ! -d "$config_path" ]; then
+    echo "Bad config path: $config_path"
+    return 1
+  fi
+  if [ ! -f "${config_path}/certs/server_cert.pem"  ] || [ ! -f "${config_path}/certs/server_key.key"  ] || [ ! -f "${config_path}/certs/ca_cert.pem"  ]; then
+    echo ""
+    echo "####################    Important!!  ######################################################"
+    echo ""
+    echo "  Missing certificates!!"
+    echo ""
+    echo "  You must place certificate files in ${config_path}/certs/"
+    echo "   server_cert.pem (server certificate)"
+    echo "   server_key.key (server key)"
+    echo "   ca_cert.pem (ca certificate)"
+    echo "##########################################################################################"
+    echo ""
+    return 1
+  else
+    # recreate full_chain and ensure permissions
+    cat "${config_path}/certs/server_cert.pem" "${config_path}/certs/ca_cert.pem" > "${config_path}/certs/full_chain.pem"
+    chmod 0644 "${config_path}"/certs/*
+    chmod 0755 "${config_path}"
+    return 0
+  fi
+}
+

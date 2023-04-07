@@ -15,8 +15,6 @@ if [ ! -f "${VENV}/bin/python" ]; then
   exit 1
 fi
 
-
-
 source ${VENV}/bin/activate
 python3 NS_Service_TFTP.py -m dev -c /opt/NetbootStudio
 deactivate

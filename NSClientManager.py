@@ -4,7 +4,7 @@ Netboot Studio iPXE Client Manager
 """
 
 #    This file is part of Netboot Studio, a system for managing netboot clients
-#    Copyright (C) 2020-2021 James Bishop (james@bishopdynamics.com)
+#    Copyright (C) 2020-2023 James Bishop (james@bishopdynamics.com)
 
 # ignore rules:
 #   docstring
@@ -53,6 +53,8 @@ class NSClientManager:
         'do_unattended': False,
         'ipxe_build_arm64': '',
         'ipxe_build_amd64': '',
+        'ipxe_build_bios32': '',
+        'ipxe_build_bios64': '',
         'stage4': 'none',
         'debian_mirror': 'http://deb.debian.org/debian',
         'ubuntu_mirror': 'http://archive.ubuntu.com/ubuntu',
@@ -536,8 +538,14 @@ class NSClientManager:
         if self.client_exists(client_mac):
             try:
                 config_json = json.dumps(config_dict)
-                logging.debug('setting client %s config to: %s' % (client_mac, config_json))
+                logging.info('setting client %s config to: %s' % (client_mac, config_json))  # TODO change this back to debug
                 retobj = self.db_cmd(sql_template, (config_json, client_mac))
+                # check arch of ipxe build and update client arch to match 
+                ipxe_build_metafile = self.paths['ipxe_builds'].joinpath(config_dict['ipxe_build']).joinpath('metadata.json')
+                ipxe_build_metadata = None
+                with open(ipxe_build_metafile, 'r', encoding='utf-8') as ibmf:
+                    ipxe_build_metadata = json.load(ibmf)
+                self.set_client_arch(client_mac, ipxe_build_metadata['arch'])
                 self.get_clients_from_db()
                 self.send_update_msg()
                 return retobj['success']
@@ -570,6 +578,7 @@ class NSClientManager:
                 logging.exception('Unexpected exception while setting info for client_mac %s', client_mac)
         else:
             logging.error('client with mac: %s does not exist!' % client_mac)
+            logging.warning('if the client also changed ip address, this may indicate that dhcp discover was attributed to a different mac address, possibly an effect of virtual networking')
         return False
 
     def set_client_state(self, client_mac, state, state_text=None, state_expiration_seconds=None, state_expiration_action=None, error=None, error_short=None, description=None):
@@ -687,6 +696,30 @@ class NSClientManager:
                 return retobj['success']
             except Exception:
                 logging.exception('Unexpected exception while setting ip for client_mac %s', client_mac)
+        else:
+            logging.error('client with mac: %s does not exist!' % client_mac)
+        return False
+
+    def set_client_arch(self, client_mac, client_arch):
+        """
+        Set the arch for a client
+        :param client_mac: mac address
+        :type client_mac: str
+        :param client_arch: arch
+        :type client_arch: str
+        :return: True or False if succeeded
+        :rtype: bool
+        """
+        sql_template = 'UPDATE clients SET arch = %s WHERE mac = %s'
+        if self.client_exists(client_mac):
+            try:
+                logging.debug('setting client %s arch to: %s' % (client_mac, client_arch))
+                retobj = self.db_cmd(sql_template, (client_arch, client_mac))
+                self.get_clients_from_db()
+                self.send_update_msg()
+                return retobj['success']
+            except Exception:
+                logging.exception('Unexpected exception while setting archfor client_mac %s', client_mac)
         else:
             logging.error('client with mac: %s does not exist!' % client_mac)
         return False

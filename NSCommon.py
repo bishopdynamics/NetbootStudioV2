@@ -4,7 +4,7 @@ Netboot Studio Common Functions
 """
 
 #    This file is part of Netboot Studio, a system for managing netboot clients
-#    Copyright (C) 2020-2021 James Bishop (james@bishopdynamics.com)
+#    Copyright (C) 2020-2023 James Bishop (james@bishopdynamics.com)
 
 # ignore rules:
 #   docstring
@@ -31,12 +31,18 @@ import asyncio
 from operator import itemgetter
 from threading import Thread
 from threading import active_count as threading_active_count
+from pathvalidate import sanitize_filename, replace_symbol
 
 import NSJanus
 
 # this is the format we use for all timestamps, its in utc/zulu
 NS_TIMESAMP_FORMAT = "%Y-%m-%d %H:%M:%S %z"
 
+
+def sanitize_string(mystring):
+    # sanitize a string suitable for use as a file name
+    # https://pathvalidate.readthedocs.io/en/latest/pages/examples/sanitize.html
+    return replace_symbol(sanitize_filename(str(mystring).replace(' ', '_')), exclude_symbols=['_', '-', '.'])
 
 # give me a list of objects like [{},{},{}] and a keyname get a sorted list back
 def sort_by_key(unsorted_list, keyname):
@@ -48,26 +54,35 @@ def print_object(prefix, item):
     # try to print this item as json string, casting to strings along the way if needed
     # its ugly, but can be helpful for troubleshooting
     newdict = {}
-    if isinstance(item, dict):
-        itemdict = item
-    else:
-        itemdict = item.__dict__
-    for key, value in itemdict.items():
-        try:
-            if isinstance(value, bool):
-                newdict[key] = 'bool(%s)' % value
-            elif isinstance(value, str):
-                newdict[key] = 'str(%s)' % value
-            elif isinstance(value, pathlib.Path):
-                newdict[key] = 'pathlib.Path(%s)' % str(value)
-            elif isinstance(value, dict):
-                newdict[key] = 'dict(%s)' % json.dumps(value)
+    try:
+        if isinstance(item, tuple):
+            logging.debug('%s%s' % (prefix, json.dumps(item, indent=4)))
+        elif isinstance(item, list):
+            logging.debug(prefix)
+            logging.debug(item)
+        else:
+            if isinstance(item, dict):
+                itemdict = item
             else:
-                newdict[key] = 'unknown(%s)' % json.dumps(value)
-        except Exception:
-            valuetype = type(value)
-            newdict[key] = 'failed to stringify key: %s, type: %s' % (key, valuetype)
-    logging.debug('%s%s' % (prefix, json.dumps(newdict, indent=4)))
+                itemdict = item.__dict__
+            for key, value in itemdict.items():
+                try:
+                    if isinstance(value, bool):
+                        newdict[key] = 'bool(%s)' % value
+                    elif isinstance(value, str):
+                        newdict[key] = 'str(%s)' % value
+                    elif isinstance(value, pathlib.Path):
+                        newdict[key] = 'pathlib.Path(%s)' % str(value)
+                    elif isinstance(value, dict):
+                        newdict[key] = 'dict(%s)' % json.dumps(value)
+                    else:
+                        newdict[key] = 'unknown(%s)' % json.dumps(value)
+                except Exception:
+                    valuetype = type(value)
+                    newdict[key] = 'failed to stringify key: %s, type: %s' % (key, valuetype)
+            logging.debug('%s%s' % (prefix, json.dumps(newdict, indent=4)))
+    except Exception as ex:
+        logging.warning('Failed to print an object:', ex)
 
 
 # validate all the required keys are present in boot image metadata
@@ -76,7 +91,7 @@ def validate_boot_image_metadata(metadata):
     #   check for existing files
     #   check key types, check that created is a valid timestamp
     #   check that name has only safe characters
-    needed_keys = ['created', 'image_type', 'description', 'release', 'arch', 'boot_image_name', 'stage2_filename', 'supports_unattended', 'stage2_unattended_filename']
+    needed_keys = ['created', 'image_type', 'description', 'release', 'arch', 'boot_image_name', 'stage2_filename', 'supports_unattended']
     all_good = True
     for keyname in needed_keys:
         if keyname not in metadata:
@@ -88,6 +103,11 @@ def validate_boot_image_metadata(metadata):
                 metadata['supports_unattended'] = True
             else:
                 metadata['supports_unattended'] = False
+    if metadata['supports_unattended']:
+        if 'stage2_unattended_filename' not in metadata:
+            logging.error('boot image metadata missing key: stage2_unattended_filename')
+            all_good = False
+
     return all_good
 
 
@@ -134,7 +154,7 @@ def get_version(path_base):
 # prepare string for the copyright line with version in it at bottom of the page
 def get_copyright():
     version = get_version(get_program_dir())
-    copyright_text = 'Copyright James Bishop (james@bishopdynamics.com) 2019-2021'
+    copyright_text = 'Copyright James Bishop (james@bishopdynamics.com) 2019-2023'
     full_string = '%s    %s' % (copyright_text, version)
     return full_string
 
@@ -220,6 +240,7 @@ def build_paths(config_dir):
     paths_object['iso'] = paths_object['config_base'].joinpath('iso')  # uploaded iso files live here
     paths_object['uboot_scripts'] = paths_object['config_base'].joinpath('uboot_scripts')  # uboot scripts that become uboot binaries
     paths_object['uboot_binaries'] = paths_object['config_base'].joinpath('uboot_binaries')  # uboot binaries, aka boot.scr.uimg
+    paths_object['temp'] = paths_object['config_base'].joinpath('temp')  # temporary scratch space for tasks
     path_strings = {}
     for entryname, pathobj in paths_object.items():
         path_strings[entryname] = str(pathobj)

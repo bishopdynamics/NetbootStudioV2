@@ -4,7 +4,7 @@ Netboot Studio Service: API Server
 """
 
 #    This file is part of Netboot Studio, a system for managing netboot clients
-#    Copyright (C) 2020-2021 James Bishop (james@bishopdynamics.com)
+#    Copyright (C) 2020-2023 James Bishop (james@bishopdynamics.com)
 
 import sys
 import uuid
@@ -50,16 +50,15 @@ class NSAPIService(NSService):
             'clients': self.ds_clients,
             'tasks': self.ds_tasks,
             'architectures': self.ds_architectures,
-            'ipxe_commit_ids': self.ds_ipxe_commit_ids,
         }
         self.data_source_objects = dict()
         self.q_staging = NSSafeQueue(loop=self.loop, maxsize=self.queue_maxsize)
         self.client_manager = NSClientManager(self.config, self.paths, 'NSAPIService', self.loop)
         self.mqtt_client = NSMQTTClient(self.mqtt_client_name, self.config, self.paths, self.mqtt_topics, self.mqtt_receive, self.loop)
         self.file_manager = NSFileManager(self.config, self.paths, self.loop)
-        self.msg_processor = NSMessageProcessor(self.config, self.paths, self.q_staging, self.client_manager, self.file_manager)
-        self.apiserver = NSAPIServer(self.config, self.paths, self.msg_processor, self.client_manager, self.loop)
         self.task_manager = NSTaskManager(self.config, self.paths, self.q_staging, self.loop)
+        self.msg_processor = NSMessageProcessor(self.config, self.paths, self.q_staging, self.client_manager, self.file_manager, self.task_manager)
+        self.apiserver = NSAPIServer(self.config, self.paths, self.msg_processor, self.client_manager, self.loop)
         self.stopabbles['mqtt_client'] = self.mqtt_client
         self.stopabbles['client_manager'] = self.client_manager
         self.setup_data_sources()
@@ -105,45 +104,22 @@ class NSAPIService(NSService):
         value = [
                     {
                         'name': 'amd64',
-                        'description': '64-bit x86',
+                        'description': '64-bit x86 EFI',
                     },
                     {
                         'name': 'arm64',
-                        'description': '64-bit ARM',
-                    }
-                ]
-        return value
-
-    def ds_ipxe_commit_ids(self):
-        # TODO actually fetch this data from the git repo, but we want to do it on a much longer loop like every 4 hours
-        value = [
-                    {
-                        'commit_id': 'f24a279',
-                        'name': 'Latest Commit (Oct 28, 2021)',
+                        'description': '64-bit ARM EFI',
                     },
                     {
-                        'commit_id': 'e6f9054',
-                        'name': 'Last Stable (Oct 20, 2020)',
+                        'name': 'bios32',
+                        'description': '32-bit x86 BIOS',
                     },
                     {
-                        'commit_id': '988d2c1',
-                        'name': 'Latest Tag 1.21.1 (Dec 31, 2020)',
-                    },
-                    {
-                        'commit_id': '8f1514a',
-                        'name': 'Next Latest Tag 1.20.1 (Jan 2, 2020)',
-                    },
-                    {
-                        'commit_id': '13a6d17',
-                        'name': 'Previous one we marked stable in old netbootstudio (Nov 29, 2020)',
-                    },
-                    {
-                        'commit_id': '53e9fb5',
-                        'name': 'Very old Tag v 1.0.0 (Feb 2, 2010)',
+                        'name': 'bios64',
+                        'description': '64-bit x86 BIOS',
                     },
                 ]
         return value
-
 
 class NSAPIServer:
     """
@@ -278,19 +254,20 @@ class NSAPIServer:
                 if request_data['password'] == self.admin_password:
                     new_token = await self.generate_auth_token()
                     response_content = '{"auth_token": "%s"}' % new_token
-                    logging.info('Successful login request from client: %s' % client_ipaddress)
+                    logging.info('Successful login for user: %s from client: %s' % (request_data['user'], client_ipaddress))
                     return web.Response(text=response_content, status=200, content_type='text/json')
+            logging.warning('Incorrect password for user: %s from: %s' % (request_data['user'], client_ipaddress))
         elif 'auth_token' in request_data:
             # renew token request
             is_valid = await self.validate_auth_token(request_data['auth_token'])
             if is_valid:
                 new_token = await self.generate_auth_token()
                 response_content = '{"auth_token": "%s"}' % new_token
-                logging.info('Successfully renewed token for client: %s' % client_ipaddress)
+                logging.debug('Successfully renewed token for client: %s' % client_ipaddress)
                 return web.Response(text=response_content, status=200, content_type='text/json')
+            logging.warning('Refused token renew request from: %s' % client_ipaddress)
         # if we got here, auth failed
-        response_content = '{"auth_token": ""}'
-        logging.debug('Refused token renew request from: %s' % client_ipaddress)
+        response_content = '{}'
         return web.Response(text=response_content, status=200)
 
     async def generate_auth_token(self):
@@ -354,7 +331,7 @@ if __name__ == "__main__":
         # dev mode has info logging, but with lots of extra internal info at each log
         LOG_LEVEL = logging.DEBUG
     else:
-        LOG_LEVEL = logging.INFO
+        LOG_LEVEL = logging.DEBUG
     # courtesy of NSLogger
     logger = get_logger(name=__name__,
                         level=LOG_LEVEL)

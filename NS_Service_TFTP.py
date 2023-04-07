@@ -4,7 +4,7 @@ Netboot Studio Service: TFTP Server and DHCP Sniffer
 """
 
 #    This file is part of Netboot Studio, a system for managing netboot clients
-#    Copyright (C) 2020-2021 James Bishop (james@bishopdynamics.com)
+#    Copyright (C) 2020-2023 James Bishop (james@bishopdynamics.com)
 
 import os
 import socket
@@ -27,23 +27,22 @@ from threading import Thread
 from NSClientManager import NSClientManager
 from NSLogger import get_logger
 from NSService import NSService
+from NSCommon import print_object
 
+# there are two different architecture values that can be found in a DHCP discover packet, and they dont always agree
+#   the first is the option 93 'pxe_client_architecture', which is definied by the IANA
+#   the second is within option 60 'vendor_class_id', which is a colon-delimited string with a 5-digit decimal value at position 2 (3rd value) representing architecture
 
-# map what dhcp_arch_types gives us, to the arch codes we are using internally
-#   note that we dont actually support anything 32bit
-arch_map = {
-    'x86 UEFI': 'i386',
-    'x64 UEFI': 'amd64',
-    'ARM 32-bit UEFI': 'arm32',
-    'ARM 64-bit UEFI': 'arm64',
-    'arm 32 uboot': 'arm32',  # u-boot reports its own arch values
-    'arm 64 uboot': 'arm64',  # u-boot reports its own arch values
-    'x86 BIOS': 'amd64',  # sometimes a client like ipxe will report "x00 x00", we map that to amd64 but it happens in the amd64 case as well sometimes. arm64 is more important
-}
+# unfortunately, bios32 and bios64 systems report the same value, so we default to bios64 for those systems
+#   arm32 and arm64 systems sometimes report bios32 in pxe_client_arch, but correctly report arm32 or arm64 within vendor_cladd_id
+#   so we start by presuming bios64 for anything that reports bios in pxe_client_arch, but override if vci reports arm32 or arm64
 
-# this is the source of truth for architectures
+# This means that, by default true bios32 platforms will fail to pxe boot, because they will be served a 64bit binary
+#   you will have to manually correct which ipxe build is assigned to those clients, and then the arch will be changed to the arch of the selected build
+
+# option 93 'pxe_client_architecture'
 # https://www.iana.org/assignments/dhcpv6-parameters/processor-architecture.csv
-dhcp_arch_types = {
+pxe_client_arch_values = {
     '0x00 0x00': {
         'name': 'x86 BIOS',
         'ref': '[RFC5970][RFC4578]',
@@ -194,6 +193,53 @@ dhcp_arch_types = {
     },
 }
 
+# option 60 'vendor_class_id'[2]
+# https://dox.ipxe.org/group__dhcpopts.html
+vendor_class_arch_values = {
+    '00000': 'X86',
+    '00001': 'PC98',
+    '00002': 'IA64',
+    '00003': 'ALPHA',
+    '00004': 'ARCX86',
+    '00005': 'LC',
+    '00006': 'IA32',
+    '00007': 'X86_64',
+    '00008': 'XSCALE',
+    '00009': 'EFI',
+    '00010': 'ARM32',
+    '00011': 'ARM64',
+    '00025': 'RISCV32',
+    '00027': 'RISCV64',
+    '00029': 'RISCV128',
+    '00033': 'MIPS32',
+    '00034': 'MIPS64',
+    '00035': 'SUNWAY32',
+    '00036': 'SUNWAY64',
+    '00037': 'LOONG32',
+    '00039': 'LOONG64',
+}
+
+# map what pxe_client_arch_values gives us, to the arch codes we are using internally
+pxe_client_arch_map = {
+    'x86 UEFI': 'ia32',
+    'x64 UEFI': 'amd64',
+    'ARM 32-bit UEFI': 'arm32',
+    'ARM 64-bit UEFI': 'arm64',
+    'arm 32 uboot': 'arm32',  # u-boot reports its own arch values
+    'arm 64 uboot': 'arm64',  # u-boot reports its own arch values
+    'x86 BIOS': 'bios64',  # bios clients will only report "x00 x00", regardless of 32bit/64bit, so presume 64bit by default
+}
+
+# map what vendor_class_arch_values give us, to the arch codes we are using internally
+vendor_class_arch_map = {
+    'X86': 'bios64',  # unfortunately, 64bit clients usually report 00000 = X86, so presume 64bit by default
+    'X86_64': 'amd64',  # EFI 64bit clients usually report this
+    'IA32': 'ia32',  # the only EFI 32 bit
+    'ARM32': 'arm32',
+    'ARM64': 'arm64',
+    'EFI': 'amd64',  # EFI 64bit sometimes report this
+}
+
 
 class NSTFTPService(NSService):
     """
@@ -240,7 +286,7 @@ class DHCPSniffer(object):
         logging.info('Starting DHCP Sniffer')
         self.dhcp_config = {
             'server': self.config.get('main', 'netboot_server_ip'),
-            'file': self.config.get('main', 'tftp_file'),
+            'file': '/ipxe.bin',
         }
         self.worker = Thread(target=self.do_scan)
         self.worker.setDaemon(True)
@@ -256,7 +302,7 @@ class DHCPSniffer(object):
             pass
 
     @staticmethod
-    def get_option(dhcp_options, key):
+    def get_option(dhcp_options, key, decode=True):
         """
         Get a DHCP option, decoding and formattinga as needed
         :param dhcp_options: dhcp options
@@ -272,7 +318,7 @@ class DHCPSniffer(object):
                     if key == 'name_server' and len(i) > 2:
                         return ",".join(i[1:])
                     elif key == 'pxe_client_architecture':
-                        # translate bytes into a string, formatted the way we expect in dhcp_arch_types
+                        # translate bytes into a string, formatted the way we expect in pxe_client_arch_values
                         val_array = str(i[1]).replace('b', '').replace('\\', '').replace('\'', '').split('x')
                         keystr = '0x%s 0x%s' % (val_array[1], val_array[2])
                         if keystr == '0x00 0x0':
@@ -280,8 +326,11 @@ class DHCPSniffer(object):
                         return keystr
                     else:
                         try:
-                            decoded = i[1].decode('utf-8')
-                            return decoded
+                            if decode:
+                                decoded = i[1].decode('utf-8')
+                                return decoded
+                            else:
+                                return i[1]
                         except Exception:
                             return str(i[1])
         except Exception:
@@ -310,31 +359,52 @@ class DHCPSniffer(object):
             # DHCP Discover
             if scapy.all.DHCP in packet and packet[scapy.all.DHCP].options[0][1] == 1:
                 arch_str = self.get_option(packet[scapy.all.DHCP].options, 'pxe_client_architecture')
-                if arch_str in dhcp_arch_types:
-                    arch_iana = dhcp_arch_types[arch_str]['name']
+                # print_object('DHCP Options', packet[scapy.all.DHCP].options)
+                # examine pxe_client_architecture
+                if arch_str in pxe_client_arch_values:
+                    arch_iana = pxe_client_arch_values[arch_str]['name']
                 else:
                     arch_iana = arch_str
-                if arch_iana in arch_map:
-                    arch = arch_map[arch_iana]
+                if arch_iana in pxe_client_arch_map:
+                    arch = pxe_client_arch_map[arch_iana]
                 else:
                     arch = 'unsupported'
+                # examine vendor_class_id
+                vci = str(self.get_option(packet[scapy.all.DHCP].options, 'vendor_class_id'))
+                vci_split = vci.split(':')
+                if str(vci_split[0]) != 'PXEClient':
+                    logging.warning(f'Saw unexpected vci[0]: {str(vci_split[0])}')
+                else:
+                    vci_arch = str(vci_split[2])
+                    if vci_arch not in vendor_class_arch_values:
+                        logging.warning(f'Unknown PXEClient arch value: {vci_arch}')
+                    else:
+                        dhcp_arch = vendor_class_arch_values[vci_arch]
+                        if dhcp_arch not in vendor_class_arch_map:
+                            logging.warning(f'Unknown vendor_class_arch_map value: {dhcp_arch}')
+                        else:
+                            pxeclient_arch = vendor_class_arch_map[dhcp_arch]
+                            logging.info(f'dhcp arch: {arch}, pxeclient_arch: {pxeclient_arch}')
+                            if pxeclient_arch in ['arm32', 'arm64']:
+                                arch = pxeclient_arch
+
                 info_dhcp = {
                     'mac': str(packet[scapy.all.Ether].src),
-                    'vci': str(self.get_option(packet[scapy.all.DHCP].options, 'vendor_class_id')),
+                    'vci': vci,
                     'arch_bytes': arch_str,
                     'arch_iana': arch_iana,
                     'arch': arch,
                     'user_class': str(self.get_option(packet[scapy.all.DHCP].options, 'user_class')),
                 }
                 logging.debug('DHCP Sniffer: (discover): %s' % json.dumps(info_dhcp))
-                if arch_iana in arch_map:
+                if arch_iana in pxe_client_arch_map:
                     client_info = self.client_manager.get_client(info_dhcp['mac'])
                     if client_info:
                         client_ipxe_build = client_info['config']['ipxe_build']
                     else:
                         client_ipxe_build = None
                     if not client_ipxe_build:
-                        logging.info('Found a new client via dhcp discover: %s (arch: %s) [%s]' % (info_dhcp['mac'], info_dhcp['arch'], json.dumps(info_dhcp)))
+                        logging.info(f'Found a new client via dhcp discover: {info_dhcp["mac"]} (arch: {info_dhcp["arch"]} ) {json.dumps(info_dhcp)}')
                         self.create_client_stub(info_dhcp)
 
             # DHCP Offer
@@ -594,7 +664,7 @@ class NSRRQProtocol(RRQProtocol):
         self.client_manager = client_mgr
         self.dhcp_config = {
             'server': self.config.get('main', 'netboot_server_ip'),
-            'file': self.config.get('main', 'tftp_file'),
+            'file': '/ipxe.bin',
         }
         self.remote_ip = str(self.remote_addr[0])
         self.remote_mac_address = scapy.all.getmacbyip(self.remote_ip)
@@ -602,7 +672,7 @@ class NSRRQProtocol(RRQProtocol):
         self.requested_filename = self.packet.fname.decode('ascii').strip('/')
         self.remote_arch = None
         self.client_ipxe_build = None
-        # in dhcp config, and in config.ini we should have '/ipxe.efi'
+        # in dhcp config, and in config.ini we should have '/ipxe.bin'
         if self.requested_filename == self.dhcp_config['file'].strip('/'):
             ipxe_file = self.choose_ipxe_file()
             if ipxe_file:
@@ -735,6 +805,8 @@ class NSRRQProtocol(RRQProtocol):
         defaults = {
             'arm64': settings['ipxe_build_arm64'],
             'amd64': settings['ipxe_build_amd64'],
+            'bios32': settings['ipxe_build_bios32'],
+            'bios64': settings['ipxe_build_bios64'],
         }
         try:
             client_info = self.client_manager.get_client(self.remote_mac_address)
@@ -743,7 +815,7 @@ class NSRRQProtocol(RRQProtocol):
                 client_info['hostname'] = self.hostname
                 self.client_manager.set_client_ip(self.remote_mac_address, self.remote_ip)
                 self.client_manager.set_client_hostname(self.remote_mac_address, self.hostname)
-                self.remote_arch = client_info['info']['dhcp']['arch']
+                self.remote_arch = client_info['arch']
                 self.client_ipxe_build = client_info['config']['ipxe_build']
             else:
                 self.log_error('client does not have an entry in database: %s' % self.remote_mac_address)
@@ -760,8 +832,8 @@ class NSRRQProtocol(RRQProtocol):
                     self.log_error('default ipxe builds does not exist: %s' % default_ipxe_build)
                 else:
                     self.client_ipxe_build = default_ipxe_build
-            # we always serve ipxe.efi from the given build
-            filename = pathlib.Path(self.ipxe_builds).joinpath(self.client_ipxe_build).joinpath('ipxe.efi')
+            # we always serve ipxe.bin from the given build. up to build stage to make that the correct format
+            filename = pathlib.Path(self.ipxe_builds).joinpath(self.client_ipxe_build).joinpath('ipxe.bin')
             if not filename.is_file():
                 self.log_error('Failed to find file: %s' % filename)
             else:

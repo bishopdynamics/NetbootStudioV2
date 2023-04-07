@@ -4,7 +4,7 @@ Netboot Studio Messages Processor
 """
 
 #    This file is part of Netboot Studio, a system for managing netboot clients
-#    Copyright (C) 2020-2021 James Bishop (james@bishopdynamics.com)
+#    Copyright (C) 2020-2023 James Bishop (james@bishopdynamics.com)
 
 # TODO we have methods with build_ in their name that have nothing to do with building binaries, this is confusing vocab
 # TODO tftp_root functions are not fleshed out
@@ -12,6 +12,7 @@ Netboot Studio Messages Processor
 import json
 import os
 import shutil
+import subprocess
 
 import logging
 import pathlib
@@ -72,7 +73,7 @@ class NSMessageProcessor:
         ],
         'tftp_root': [
             {
-                'filename': 'ipxe.efi',
+                'filename': 'ipxe.bin',
                 'modified': '1970-01-01_00:00:00',
                 'description': 'builtin: endpoint for ipxe build',
             },
@@ -101,12 +102,13 @@ class NSMessageProcessor:
         ],
     }
 
-    def __init__(self, config, paths, q_staging, client_mgr, file_mgr):
+    def __init__(self, config, paths, q_staging, client_mgr, file_mgr, task_mgr):
         self.config = config  # unused
         self.paths = paths
         self.q_staging = q_staging
         self.client_manager = client_mgr
         self.file_manager = file_mgr
+        self.task_manager = task_mgr
         self.endpoint_methods = {
             'get_ipxe_builds': self.get_ipxe_builds,
             'get_stage1_files': self.get_stage1_files,
@@ -129,6 +131,9 @@ class NSMessageProcessor:
             'delete_stage4': self.delete_stage4,
             'get_settings': self.get_settings,
             'set_settings': self.set_settings,
+            'task_action': self.task_action,
+            'get_file': self.get_file,
+            'save_file': self.save_file,
         }
 
     # these two methods are the core of api handling
@@ -320,6 +325,44 @@ class NSMessageProcessor:
             logging.exception('exception while create_task: %s' % ex)
             return self.build_error('unexpected exception in create_task')
 
+    def task_action(self, payload):
+        # request task manager to perform an action on a specific task
+        try:
+            payload = dict(payload)
+            task_id = payload['task_id']
+            action = payload['action']
+            logging.debug(f'handling task_action for: {action}, {task_id}')
+            result = self.task_manager.task_action(task_id, action)
+            if not result:
+                raise Exception('task action failed')
+            if action == 'log':
+                return self.build_success(result)
+            return self.build_success('Success')
+        except Exception as ex:
+            logging.exception('exception while create_task: %s' % ex)
+            return self.build_error('unexpected exception in create_task')
+
+    def delete_folder(self, folderpath):
+        # delete a folder and its contents
+        # NOTE shutil.rmtree() does not work, it takes FOREVER, dont know why it is so slow
+        logging.debug(f'Deleting folder: {folderpath}')
+        if folderpath is None:
+            raise Exception(f'given folderpath was: None')
+        if not pathlib.Path(folderpath).is_dir():
+            raise Exception(f'could not find folder to delete: {folderpath}')
+        result = subprocess.run(f'rm -r "{folderpath}"', shell=True, universal_newlines=True, cwd=None, capture_output=False, text=True)
+        if result.returncode != 0:
+            raise Exception(f'failed to delete_folder: {folderpath}')
+
+    def delete_file(self, filepath):
+        # detete a file
+        logging.debug(f'Deleting file: {filepath}')
+        if filepath is None:
+            raise Exception(f'given filepath was: None')
+        if not pathlib.Path(filepath).is_file():
+            raise Exception(f'could not find file to delete: {filepath}')
+        os.remove(filepath)
+
     def delete_client(self, payload):
         try:
             payload = dict(payload)
@@ -332,22 +375,20 @@ class NSMessageProcessor:
 
     def delete_boot_image(self, payload):
         try:
+            
             payload = dict(payload)
             boot_image_name = payload['name']
+            logging.info(f'Deleting boot image: {boot_image_name}')
             for this_builtin in self.builtin_files['boot_images']:
-                if this_builtin['name'] == boot_image_name:
+                if this_builtin['boot_image_name'] == boot_image_name:
                     raise Exception('cannot delete builtins')
             if '.ipxe' in boot_image_name:
                 fullpath = pathlib.Path(self.paths['boot_images']).joinpath(boot_image_name)
-                if not fullpath.is_file():
-                    raise Exception('a-la-carte boot image: %s does not exist!' % boot_image_name)
-                os.remove(fullpath)
+                self.delete_file(fullpath)
                 return self.build_success('Success')
             else:
                 fullpath = pathlib.Path(self.paths['boot_images']).joinpath(boot_image_name)
-                if not fullpath.is_dir():
-                    raise Exception('folder boot_image: %s does not exist!' % boot_image_name)
-                shutil.rmtree(fullpath)
+                self.delete_folder(fullpath)
                 return self.build_success('Success')
         except Exception as ex:
             logging.exception('exception while delete_boot_image: %s' % ex)
@@ -361,9 +402,7 @@ class NSMessageProcessor:
                 if this_builtin['filename'] == filename:
                     raise Exception('cannot delete builtins')
             fullpath = pathlib.Path(self.paths['unattended_configs']).joinpath(filename)
-            if not fullpath.is_file():
-                raise Exception('file: %s does not exist!' % filename)
-            os.remove(fullpath)
+            self.delete_file(fullpath)
             return self.build_success('Success')
         except Exception as ex:
             logging.exception('exception while delete_unattended: %s' % ex)
@@ -374,9 +413,7 @@ class NSMessageProcessor:
             payload = dict(payload)
             build_id = payload['build_id']
             fullpath = pathlib.Path(self.paths['ipxe_builds']).joinpath(build_id)
-            if not fullpath.is_dir():
-                raise Exception('build folder named %s does not exist!' % build_id)
-            shutil.rmtree(fullpath)
+            self.delete_folder(fullpath)
             return self.build_success('Success')
         except Exception as ex:
             logging.exception('exception while delete_ipxe_build: %s' % ex)
@@ -387,9 +424,7 @@ class NSMessageProcessor:
             payload = dict(payload)
             build_id = payload['build_id']
             fullpath = pathlib.Path(self.paths['wimboot_builds']).joinpath(build_id)
-            if not fullpath.is_dir():
-                raise Exception('build folder named %s does not exist!' % build_id)
-            shutil.rmtree(fullpath)
+            self.delete_folder(fullpath)
             return self.build_success('Success')
         except Exception as ex:
             logging.exception('exception while delete_wimboot_build: %s' % ex)
@@ -403,9 +438,7 @@ class NSMessageProcessor:
                 if this_builtin['filename'] == filename:
                     raise Exception('cannot delete builtins')
             fullpath = pathlib.Path(self.paths['stage1_files']).joinpath(filename)
-            if not fullpath.is_file():
-                raise Exception('file: %s does not exist!' % filename)
-            os.remove(fullpath)
+            self.delete_file(fullpath)
             return self.build_success('Success')
         except Exception as ex:
             logging.exception('exception while delete_stage1_file: %s' % ex)
@@ -419,9 +452,7 @@ class NSMessageProcessor:
                 if this_builtin['filename'] == filename:
                     raise Exception('cannot delete builtins')
             fullpath = pathlib.Path(self.paths['stage4']).joinpath(filename)
-            if not fullpath.is_file():
-                raise Exception('file: %s does not exist!' % filename)
-            os.remove(fullpath)
+            self.delete_file(fullpath)
             return self.build_success('Success')
         except Exception as ex:
             logging.exception('exception while delete_stage4: %s' % ex)
@@ -435,9 +466,7 @@ class NSMessageProcessor:
                 if this_builtin['filename'] == filename:
                     raise Exception('cannot delete builtins')
             fullpath = pathlib.Path(self.paths['uboot_scripts']).joinpath(filename)
-            if not fullpath.is_file():
-                raise Exception('file: %s does not exist!' % filename)
-            os.remove(fullpath)
+            self.delete_file(fullpath)
             return self.build_success('Success')
         except Exception as ex:
             logging.exception('exception while delete_uboot_script: %s' % ex)
@@ -448,9 +477,7 @@ class NSMessageProcessor:
             payload = dict(payload)
             filename = payload['filename']
             fullpath = pathlib.Path(self.paths['iso']).joinpath(filename)
-            if not fullpath.is_file():
-                raise Exception('file: %s does not exist!' % filename)
-            os.remove(fullpath)
+            self.delete_file(fullpath)
             return self.build_success('Success')
         except Exception as ex:
             logging.exception('exception while delete_iso: %s' % ex)
@@ -478,3 +505,68 @@ class NSMessageProcessor:
         except Exception as ex:
             logging.exception('exception while set_settings: %s' % ex)
             return self.build_error('unexpected exception in set_settings')
+
+    def check_if_builtin(self, file_category, file_name):
+        # check if file_name is a builtin for a category
+        if file_category not in self.builtin_files:
+            return False
+        for entry in self.builtin_files[file_category]:
+            if entry['filename'] == file_name:
+                return True
+        return False
+
+    def get_file(self, payload):
+        # get content from a file
+        # TODO check builtins for this category, prohibit touching builtins
+        try:
+            payload = dict(payload)
+            file_name = payload['file_name']
+            file_cat = payload['file_category']
+            logging.debug(f'getting a file: {file_cat} / {file_name}')
+            if file_cat not in self.paths:
+                raise Exception(f'Unknown file_category: {file_cat}')
+            if self.check_if_builtin(file_cat, file_name):
+                raise Exception(f'Cannot get file: {file_name}, is builtin!')
+            base_path = pathlib.Path(self.paths[file_cat])
+            file_path = base_path.joinpath(file_name)
+            if not file_path.is_file():
+                raise Exception(f'File not found: {file_path}')
+            logging.debug(f'reading from file: {file_path}')
+            file_content = ''
+            with open(file_path, 'r', encoding='utf-8') as fp:
+                file_content = fp.read()
+            return_obj = {
+                'file_name': file_name,
+                'file_category': file_cat,
+                'file_path': str(file_path),
+                'file_content': file_content,
+            }
+            return self.build_success(return_obj)
+        except Exception as ex:
+            logging.exception('exception while get_file: %s' % ex)
+            return self.build_error('unexpected exception in get_file')
+
+    def save_file(self, payload):
+        # write content to a file
+        # TODO check builtins for this category, prohibit touching builtins
+        try:
+            payload = dict(payload)
+            file_name = payload['file_name']
+            file_cat = payload['file_category']
+            logging.debug(f'saving a file: {file_cat} / {file_name}')
+            if file_cat not in self.paths:
+                raise Exception(f'Unknown file_category: {file_cat}')
+            if self.check_if_builtin(file_cat, file_name):
+                raise Exception(f'Cannot write to file: {file_name}, is builtin!')
+            base_path = pathlib.Path(self.paths[file_cat])
+            file_path = base_path.joinpath(file_name)
+            if not file_path.is_file():
+                raise Exception(f'File not found: {file_path}')
+            logging.debug(f'writing to file: {file_path}')
+            file_content = payload['file_content']
+            with open(file_path, 'w', encoding='utf-8') as fp:
+                fp.write(file_content)
+            return self.build_success('Success')
+        except Exception as ex:
+            logging.exception('exception while save_file: %s' % ex)
+            return self.build_error('unexpected exception in save_file')

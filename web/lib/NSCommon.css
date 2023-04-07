@@ -8,7 +8,8 @@
     top: 64px;
     left: 0;
     padding-top: 10px;
-    overflow: scroll;
+    overflow-x: hidden;
+    overflow-y: scroll;
 }
 
 .main-nav-button {
@@ -36,7 +37,7 @@
     overflow: scroll;
     position: absolute;
     top: 10px;
-    bottom: 10px;
+    bottom: 0px;
     left: 10px;
     right: 10px;
     padding: 15px;
@@ -47,7 +48,6 @@
     margin: 10px;
 }
 
-
 /* at the bottom */
 .main-tasklist {
     position: absolute;
@@ -57,6 +57,20 @@
     height: 300px;
     padding: 10px;
 }
+
+
+/* Generic class to inhibit scrollbars on an element, regardless of need 
+    sadly, there are three differnt methods depending on browser
+*/
+.no-scrollbars {
+    -ms-overflow-style: none;  /* Internet Explorer 10+ */
+    scrollbar-width: none;  /* Firefox */
+}
+
+.no-scrollbars::-webkit-scrollbar { 
+    display: none;  /* Safari and Chrome */
+}
+
 
 /* this is the header's actual head element */
 .tasklist-table-head {

@@ -4,7 +4,7 @@ Netboot Studio Service: API Server
 """
 
 #    This file is part of Netboot Studio, a system for managing netboot clients
-#    Copyright (C) 2020-2021 James Bishop (james@bishopdynamics.com)
+#    Copyright (C) 2020-2023 James Bishop (james@bishopdynamics.com)
 
 import sys
 import json
@@ -92,7 +92,7 @@ class NSFileWatcher(object):
         ],
         'tftp_root': [
             {
-                'filename': 'ipxe.efi',
+                'filename': 'ipxe.bin',
                 'modified': '1970-01-01_00:00:00',
                 'description': 'builtin: endpoint for ipxe build',
             },
@@ -139,7 +139,7 @@ class NSFileWatcher(object):
         # add builtins
         stage1_files += self.builtin_files['stage1_files']
         # find files in folder
-        for this_file in stage1_folder.glob('*.ipxe'):
+        for this_file in stage1_folder.glob('*.[iI][pP][xX][eE]'):
             this_modified = get_file_modified(this_file)
             this_res = {'filename': str(this_file.name), 'modified': this_modified, 'description': ''}
             stage1_files.append(this_res)
@@ -149,7 +149,7 @@ class NSFileWatcher(object):
         iso_folder = pathlib.Path(self.paths['iso'])
         iso = []
         # find files in folder
-        for this_file in iso_folder.glob('*.iso'):
+        for this_file in iso_folder.glob('*.[iI][sS][oO]'):
             this_modified = get_file_modified(this_file)
             this_res = {'filename': str(this_file.name), 'modified': this_modified, 'description': ''}
             iso.append(this_res)
@@ -163,6 +163,8 @@ class NSFileWatcher(object):
         # find files in folder
         # TODO this lists everything, but our system isnt really setup for file path navigation
         for this_file in tftp_folder.glob('*'):
+            if str(this_file.name) == '.metadata' or str(this_file.name) == '.resources':
+                continue  # ignore hidden folders used by uploader
             this_modified = get_file_modified(this_file)
             this_res = {'filename': str(this_file.name), 'modified': this_modified, 'description': ''}
             tftp_root.append(this_res)
@@ -174,7 +176,7 @@ class NSFileWatcher(object):
         # add builtins
         uboot_scripts += self.builtin_files['uboot_scripts']
         # find files in folder
-        for this_file in uboot_scripts_folder.glob('*.scr'):
+        for this_file in uboot_scripts_folder.glob('*.[sS][cC][rR]'):
             this_modified = get_file_modified(this_file)
             this_res = {'filename': str(this_file.name), 'modified': this_modified, 'description': ''}
             uboot_scripts.append(this_res)
@@ -184,11 +186,11 @@ class NSFileWatcher(object):
         uc_folder = pathlib.Path(self.paths['unattended_configs'])
         unattended_configs = []
         unattended_configs += self.builtin_files['unattended_configs']
-        for this_file in uc_folder.glob('*.cfg'):
+        for this_file in uc_folder.glob('*.[cC][fF][gG]'):
             this_modified = get_file_modified(this_file)
             this_res = {'filename': str(this_file.name), 'modified': this_modified, 'description': ''}
             unattended_configs.append(this_res)
-        for this_file in uc_folder.glob('*.xml'):
+        for this_file in uc_folder.glob('*.[xX][mM][lL]'):
             this_modified = get_file_modified(this_file)
             this_res = {'filename': str(this_file.name), 'modified': this_modified, 'description': ''}
             unattended_configs.append(this_res)
@@ -199,14 +201,14 @@ class NSFileWatcher(object):
         stage4 = []
         stage4_builtins = ['stage4-entry-unix.sh', 'stage4-entry-windows.bat', 'none']
         stage4 += self.builtin_files['stage4']
-        for this_file in stage4_folder.glob('*.sh'):
+        for this_file in stage4_folder.glob('*.[sS][hH]'):
             this_modified = get_file_modified(this_file)
             if str(this_file.name) in stage4_builtins:
                 logging.warning('a real file matching one of the builtin stage4 entrypoints exists! It will be ignored. file: %s' % this_file.name)
                 continue  # skip anything that matches the builtins
             this_res = {'filename': str(this_file.name), 'modified': this_modified, 'description': ''}
             stage4.append(this_res)
-        for this_file in stage4_folder.glob('*.bat'):
+        for this_file in stage4_folder.glob('*.[bB][aA][tT]'):
             this_modified = get_file_modified(this_file)
             if str(this_file.name) in stage4_builtins:
                 logging.warning('a real file matching one of the builtin stage4 entrypoints exists! %s' % this_file.name)
@@ -221,7 +223,7 @@ class NSFileWatcher(object):
         # builtins first
         boot_images += self.builtin_files['boot_images']
         # a-la-carte images
-        for this_file in pathlib.Path(self.paths['boot_images']).glob('*.ipxe'):
+        for this_file in pathlib.Path(self.paths['boot_images']).glob('*.[iI][pP][xX][eE]'):
             # TODO it makes more sense for files to have modified rather than created,
             #  but we cannot rename the key because the schema needs to match on both file and folder
             this_modified = get_file_modified(this_file)

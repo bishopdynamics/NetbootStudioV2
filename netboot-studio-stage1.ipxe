@@ -1,17 +1,26 @@
 #!ipxe
-# shellcheck disable=SC2239,SC2046,SC2154,SC2086,SC1132,SC2031,SC2030,SC2015
+# shellcheck disable=SC2239,SC2046,SC2154,SC2086,SC1132,SC2031,SC2030,SC2015,SC2269,SC1008,SC2121
 
 # Netboot Studio stage1.ipxe
 # 	to be embedded in ipxe binaries
 
 #    This file is part of Netboot Studio, a system for managing netboot clients
-#    Copyright (C) 2019 James Bishop (jamesbishop2006@gmail.com)
+#    Copyright (C) 2019-2023 James Bishop (jamesbishop2006@gmail.com)
 
+# detect client arch
 
-
+set arch ${buildarch}
+# check for edge cases and standardize our arch value to:
+#   i386, amd64, arm32, arm64, bios32, bios64
+iseq ${arch} i386 && iseq ${platform} pcbios && set arch bios32 ||
+iseq ${arch} amd64 && iseq ${platform} pcbios && set arch bios64 ||
+iseq ${arch} x86_64 && iseq ${platform} pcbios && set arch bios64 ||
+iseq ${arch} x86_64 && set arch amd64 ||
+iseq ${arch} aarch64 && set arm64 ||
+echo Detected Architecture: ${arch}
 
 :setup-network
-echo Netboot Studio
+echo Netboot Studio ${arch}
 echo If booted from removable media, it can be removed now
 
 echo
@@ -36,7 +45,8 @@ echo
 :chain-next-stage
 # TODO setting up a linux kernel with our certificate chain trusted is difficult, so stage2 and later must be http for now
 # TODO when we do https again, remember the cert needs to be valid for ip as well
-set stage-2-url http://${next-server}:8082/stage2.ipxe?mac=${mac}&buildarch=${buildarch}&platform=${platform}&manufacturer=${manufacturer}&chip=${chip}&ip=${ip}&uuid=${uuid}&serial=${serial}&product=${product}&version=${version}&unixtime=${unixtime}&asset=${asset}
+# shellcheck disable=SC2121
+set stage-2-url http://${next-server}:8082/stage2.ipxe?mac=${mac}&buildarch=${arch}&platform=${platform}&manufacturer=${manufacturer}&chip=${chip}&ip=${ip}&uuid=${uuid}&serial=${serial}&product=${product}&version=${version}&unixtime=${unixtime}&asset=${asset}
 echo Chaining Stage 2
 sleep 1
 imgexec ${stage-2-url} || goto failed

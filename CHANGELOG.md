@@ -1,6 +1,6 @@
 # Changelog
 
-* 0.2.105 - 
+* 0.2.110 - see readme for April 2023 update
 * 0.2.104 - moved task status to tasks pane, moved client state to own tab, lots of tiny tweaks
 * 0.2.103 - fleshed out first_time_setup.sh with wizard 
 * 0.2.102 - when boot_image_once, reset when client state next becomes inactive; clear stray client state toast on client delete

@@ -4,17 +4,23 @@ Netboot Studio Tasks Manager
 """
 
 #    This file is part of Netboot Studio, a system for managing netboot clients
-#    Copyright (C) 2020-2021 James Bishop (james@bishopdynamics.com)
+#    Copyright (C) 2020-2023 James Bishop (james@bishopdynamics.com)
 
 
 import uuid
 import json
 import logging
 import asyncio
+import pathlib
 
 from NSCommon import NSSafeQueue, start_workers_generic, process_queue_generic
 from NSTasks import NSTask_FakeLongTask
 from NSTask_BuildiPXE import NSTask_BuildiPXE
+from NSTask_Image_WindowsFromISO import NSTask_Image_WindowsFromISO
+from NSTask_Image_ESXFromISO import NSTask_Image_ESXFromISO
+from NSTask_Image_DebianWeb import NSTask_Image_DebianWeb
+from NSTask_Image_UbuntuWeb import NSTask_Image_UbuntuWeb
+from NSTask_Image_DebianLive import NSTask_Image_DebianLive
 from NSPubSub import NSMQTTClient
 
 # api request places task requests in a staging queue
@@ -41,6 +47,31 @@ class NSTaskManager:
                 'name': 'Build iPXE',
                 'description': 'Build an ipxe binary and iso, and another iso without embedded stage1_file',
             },
+            'image_windows_installer_from_iso': {
+                'class': NSTask_Image_WindowsFromISO,
+                'name': 'New Windows boot image from ISO',
+                'description': 'Create a new Windows installer boot image from ISO',
+            },
+            'image_esx_installer_from_iso': {
+                'class': NSTask_Image_ESXFromISO,
+                'name': 'New VMware ESXi boot image from ISO',
+                'description': 'Create a new VMware ESXi installer boot image from ISO',
+            },
+            'image_debian_webinstaller': {
+                'class': NSTask_Image_DebianWeb,
+                'name': 'New Debian Webinstaller',
+                'description': 'Create a minimal boot image to fetch and install Debian from the web',
+            },
+            'image_ubuntu_webinstaller': {
+                'class': NSTask_Image_UbuntuWeb,
+                'name': 'New Ubuntu Webinstaller',
+                'description': 'Create a minimal boot image to fetch and install Ubuntu from the web',
+            },
+            'image_debian_liveimage': {
+                'class': NSTask_Image_DebianLive,
+                'name': 'New Debian Liveimage',
+                'description': 'Create a bootable live image of Debian',
+            },
             'fake_longtask': {
                 'class': NSTask_FakeLongTask,
                 'name': 'Fake Long Task',
@@ -51,6 +82,7 @@ class NSTaskManager:
         self.loop = asyncio.new_event_loop()
         self.queue_tasks = NSSafeQueue(loop=self.loop, maxsize=self.queue_maxsize)
         self.task_status = []  # store task status here, and let the datasource publish it. we need it as an array so we can use an NSDataSourceTable on the js side
+        self.task_index = {}  # track task objects by task_id, until they are cleared
         self.start_task_workers()
         self.start_staging_workers()
 
@@ -66,7 +98,7 @@ class NSTaskManager:
             if topic == self.mqtt_topic:
                 message = json.loads(msg)
                 if 'task_status' in message:
-                    logging.debug('NSTaskManager received a task status message via mqtt topic')
+                    # logging.debug('NSTaskManager received a task status message via mqtt topic')
                     self.send_message(message['task_status'])
         except Exception as ex:
             logging.error('Unexpected Exception while mqtt_receive: %s', ex)
@@ -142,9 +174,17 @@ class NSTaskManager:
     def execute_task(self, task_object):
         # run task, reporting running status, and then complete status
         try:
+            task_id = task_object['task_id']
+            if task_id in self.task_index:
+                logging.error(f'An entry in running_tasks already exists for: {task_id}')
+                raise Exception(f'An entry in running_tasks already exists for: {task_id}')
+            # if task_payload includes a name, rewrite description
+            if 'name' in task_object['task_payload']:
+                task_object['task_description'] = 'Creating: %s' % task_object['task_payload']['name']
             logging.debug('task_object: %s' % json.dumps(task_object))
             task_class = self.task_map[task_object['task_type']]['class']
             taskobj = task_class(self.paths, self.send_message, task_object)
+            self.task_index[task_id] = taskobj
             taskobj.start()
         except Exception as ex:
             logging.exception('failed while execute_task: %s' % ex)
@@ -152,3 +192,46 @@ class NSTaskManager:
     def get_tasks(self):
         # the DataSource will use this to fetch current status
         return self.task_status
+
+    def task_action(self, task_id, action, payload=None):
+        # perform some action on a task
+        # stop, retry, clear, log
+        logging.debug(f'task_action called: {task_id}, {action}')
+        try:
+            if action == 'clear':
+                # call task.cleanup() and then remove from task_index
+                logging.info(f'Clearing task: {task_id}')
+                self.task_index[task_id].cleanup()
+                self.task_index.pop(task_id)
+                for index, existing_task in enumerate(self.task_status):
+                    if existing_task['task_id'] == task_id:
+                        self.task_status.pop(index)
+                        break
+            elif action == 'stop':
+                logging.info(f'Stopping task: {task_id}')
+                self.task_index[task_id].stop()
+            elif action == 'log':
+                # get the current content of the log
+                # need to figure out where the log is
+                # it would be really cool if we could stream logfile contents, one line at a time on a bespoke mqtt topic, 
+                #   and then client-side we just append all messages received to a running buffer
+                # but realistically we should just fetch static file content, and have a re-fetch button
+                log_file = self.task_index[task_id].log_file
+                if log_file is None:
+                    raise Exception('failed to fetch log file, path is None')
+                if not pathlib.Path(log_file).is_file():
+                    raise Exception('failed to fetch log file, not found')
+                content = ''
+                with open(log_file, 'r', encoding='utf-8') as lf:
+                    content = lf.read()
+                return_obj = {
+                    'log_file': str(log_file),
+                    'log_content': content,
+                }
+                return return_obj
+            else:
+                raise Exception(f'unknown task action: {action}')
+            return True
+        except Exception as ex:
+            logging.exception('exception while task_action: %s' % ex)
+            return False

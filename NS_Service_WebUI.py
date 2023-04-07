@@ -4,7 +4,7 @@ Netboot Studio Service: Web UI
 """
 
 #    This file is part of Netboot Studio, a system for managing netboot clients
-#    Copyright (C) 2020-2021 James Bishop (james@bishopdynamics.com)
+#    Copyright (C) 2020-2023 James Bishop (james@bishopdynamics.com)
 
 
 import sys
@@ -131,7 +131,6 @@ class NSWebUIserver:
         with open(self.paths['web'].joinpath('main.html')) as mainfile:
             content = mainfile.read()
         return web.Response(text=content, status=200, content_type='text/html')
-        # return web.FileResponse(self.paths['web'].joinpath('main.html'))
 
 
 if __name__ == "__main__":

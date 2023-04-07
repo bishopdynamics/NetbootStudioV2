@@ -1,4 +1,4 @@
-Copyright 2019 James Bishop
+Copyright 2019-2023 James Bishop
 
 
 GNU GENERAL PUBLIC LICENSE

@@ -20,37 +20,61 @@ This project makes use of the following packages (from PIP):
 * Sphinx (BSD)
 * rinohtype (AGPLv3)
 * watchdog (Apache v2)
+* python-ldap (Python/MIT)
 
 Everything else is GPLv3 license, [license.txt](license.txt)
 
 ## Disclaimer
 
 This project attempts to use SSL and HTTPS to provide a vague sense of security, but it is not ideally implemented. 
-Credentials are hardcoded (`admin:admin`) in [config-default.ini](config-default.ini).
+Credentials for admin user are just stored in `config.ini`.
 For a home lab setup, this is fine, but if you want to use this for a project where security actually matters then you should take a real critical look at my implementation of all this, and probably overhaul it.
 
-This project is NOT actively maintained. Please feel free to fork it and run with it! Drop me a line if you are proud of your changes, I will be genuinely interested to see what you've done with it!
-
-If I am to be perfectly honest, the change to docker stack architecture added unnecessary complexity, 
-and if I were to reboot this project again I would not repeat that decision. 
-Of course, if one were to combine all the services back into a single Python module, there would be some significant performance issues related to GIL, which is the primary reason I split it up in the first place.
-I'm sure all the threading could be done in a far more efficient and "correct" manner.
-
-Finally, I did a little cleanup to publish this in May 2022, but I am not 100% certain of the current state of things 
-because I stopped actually using or working on it in late 2021. 
-I remember having trouble getting it working correctly on an arm64 host, and I don't think I ever resolved that issue.
+This project is NOT actively maintained. 
+Please feel free to fork it and run with it! 
+Drop me a line if you are proud of your changes, I will be genuinely interested to see what you've done with it!
 
 Happy Hacking!
 
+### Update April 2023:
+
+I picked this up again, fleshed out a few more things:
+
+* Implemented wizards and tasks for creating some boot_images, but you will still need to create unatteded configs by hand.
+  * Windows 8+ Installer from ISO
+  * Debian/Ubuntu Webinstaller
+  * VMware ESXi from ISO
+  * Debian LiveImage (using squashfs)
+* Improved architecture detection
+  * If architecture is detected wrong, you can override ipxe build, and architecture will be updated to match
+  * Added experimental support for bios32 and bios64 clients, not really supported but fun to tinker with
+  * Some 32bit BIOS virtual machines will be detected as bios64, but most physical 32bit BIOS machines should detect correctly
+* Overhauled the setup script, changed folder ownership. Everything now owned and runs as user "netboot", but you should run `build-image.sh` `./update.sh`, and `./deploy.sh` as root.
+* Changed most `test-*.sh` scripts to run inside container, to more closely match real environment
+* Moved a few unnecessary DataSource instances to static values, improving startup time of API service
+* Some big changes to tasks
+  * tasks now create standardized scratch and workspace folders within `/opt/NetbootStudio/temp/`
+    * scratch is for temporary files
+    * workspace is where the task creates files and folders. Last step of task is to copy workspace to final location.
+  * successful tasks cleanup scratch and workspace automatically
+    * only stopped/failed tasks leave scratch and workspace around for troubleshooting
+  * tasks now run in separate thread
+* Tasks pane in webui now has buttons!
+  * view the log file (not live, close and click again to update)
+  * stop a running task, which causes it to fail
+  * clear a non-running task, which will cleanup any remaining scratch and workspace
+* Added webui text editor for certain categories of files
+* Added VSCode Server instance to docker stack, to make it easier to edit other files, available at `https://netboot-server:8443/`
+
+
 ## DHCP Server
 
-You must provide your own DHCP server, and have it configured to provide `tftp-server` and `next-server` as the IP of your netboot server, and the filename `/ipxe.efi` for all architectures (including default bios) 
-Netboot Studio does not support traditional pcbios pxe booting, only UEFI, but it will try anyway!
+You must provide your own DHCP server, and have it configured to provide `tftp-server` and `next-server` as the IP of your netboot server, and the filename `/ipxe.bin` for all architectures (including default bios) 
+Netboot Studio supports pxe booting for bios32 abd bios64 clients, however that support is really only there to help out legacy users, and is not actively tested.
 Our TFTP Server will take care of providing the correct build of ipxe, per architecture, and in the webui you can build your own binary and select it in client config
 
 ## Note About File Shares
 
-Netboot Studio first-time setup will ask you for an NFS share to mount at `/opt/NetbootStudio`; this is the preferred way to store files. 
 You must not make `/opt/local` or anything under it any kind of mounted share; the purpose of `/opt/local` is to keep separate the things which would become corrupt if on a share (like the database)
 
 
@@ -61,40 +85,37 @@ Netboot Studio operates as a docker stack, but there are still special requireme
 Right now we support a very specific setup:
 
 * Debian 11 (Bullseye) amd64. Base install without desktop or gnome, with ssh server
-  * Debian does not have sudo by default, so log in as root to install git
-    * `apt-get update`
-    * `apt-get install -y git`
-  * logout, and login as your normal, non-root user
-  * clone the repo in the home folder:
-    * `git clone http://bishopdynamics.com:8094/james/NetbootStudio-V2.git`
-  * log back in as root, then run first-time setup
-    * `cd NetbootStudio-V2` (the repo, in non-root user's home folder)
-    * `./first_time_setup.sh`
-  * the wizard will prompt you for input, then ask you to confirm before it configures everything for Netboot Studio
+  * You will do all of this as root user
+  * clone the repo and run setup script:
+    * `git clone https://github.com/bishopdynamics/NetbootStudioV2`
+    * `cd NetbootStudio-V2`
+    * `./setup.sh`
+  * the wizard will prompt you to set a local admin password, then handle everything else for you
     * this script will generate unique passwords for the database, broker, samba server, and nfs server
     * it will also generate `docker-compose.yml` which will be used to stand up everything
-  * when first-time setup is complete, you will now have sudo for the non-root user, so you should log out of root and login as the non-root user for the rest of setup
-  * when first-time setup is complete, it will warn you about credentials
+    * it will also create a new user and group `netboot` and chown everything as that user and group. services will run as that user as well.
+  * you can re-run setup at any time, it will re-use credentials from `local_environment.sh`
+    * if you want to start fresh, run `./reset.sh`, delete `/opt/NetbootStudio`, then run `setup.sh` again
+  * when setup is complete, it will warn you about credentials
     * You need to provide server certificate and key, and ca certificate: `server_cert.pem`, `server_key.key`, `ca_cert.pem`
-    * You also need to create a `full_chain.pem` by appending ca_cert to server_cert: `cat server_cert.pem ca_cert.pem > full_chain.pem`
     * so now you have the following files:
       * `ca_cert.pem`
-      * `full_chain.pem`
       * `server_cert.pem`
       * `server_key.pem`
-    * Put these files in `/opt/NetbootStudio/certs/`, make sure they are owned by your non-root user
-    * start Netboot Studio by running `./run.sh` (again, as non-root user)
+    * Put these files in `/opt/NetbootStudio/certs/`
+    * start Netboot Studio by running `./deploy.sh`
       * this will always rebuild the docker image from spec, which should be pretty fast after the first time
     * navigate to `https://netboot-server/` where `netboot-server` is the hostname of your server
-    * log in as admin, with the password you gave during first-time-setup
+    * log in as admin, with the password you gave during setup
     * Netboot Studio does not provide any iPXE builds out-of-the-box, so your first task is to build one for each arch (amd64, arm64)
       * go to iPXE Builds tab, click "New"
+    * Next, go to Settings and select default ipxe builds for each arch
 
-* since Netboot Studio is made up of docker services, you do NOT need to start it up after every reboot, it will start on its own.
-* to update, do a git pull and run `./run.sh` to rebuild and deploy the updated version
 
-* in development we use a virtual machine with 4 cpus/cores and 2GB ram. 
-* more cpus will improve performance of tasks like ipxe builds and debian liveimage builds, but wont have a significant impact on day-to-day performance.
+* to update, do a `git pull` and run `./deploy.sh` to stop, rebuild, and re-deploy Netboot Studio
+
+* in development we use a virtual machine with 4 cores and 2GB ram. 
+* more cores will improve performance of tasks like ipxe builds and boot image builds, but wont have a significant impact on day-to-day performance.
 
 * Setup steps average times:
   * manually installing Debian using the netinstall iso (and transparent http caching): 7 minutes
@@ -104,10 +125,18 @@ Right now we support a very specific setup:
 
 ## Supported Client Architectures
 
-* amd64 (aka x86_64)
-* arm64 (aka aarch64)
+### Completely Supported
+* amd64 (aka x86_64 UEFI)
+* arm64 (aka aarch64 UEFI)
+
+### Available for experimentation
+* bios32 (aka 32bit x86 BIOS)
+* bios64 (aka 64bit x86_64 BIOS)
+* arm32 (aka 32bit arm32 UEFI)
 
 ## Supported Client Operating Systems
+
+For all OS, only 64bit UEFI is really supported. Other configurations are experimental at best.
 
 * Windows 7, 8, 8.1, 10 and 11
 * Windows Server 2012, 2016, 2019, 20H2?
@@ -136,8 +165,6 @@ Put your unattended config files in `/opt/NetbootStudio/unattended_configs/`, an
 ## Stage4 Deployment Configuration System
 
 There are many deployment configuration systems out there, but we felt like rolling our own much simpler one for fun.
-The examples that Netboot Studio provides with a fresh installation are intended as a basis for your own tweaking, 
-it will not be updated with Netboot Studio.
 
 #### Debian preseed file
 The stage4 post-install system is designed to be executed by the late_command portion of a debian preseed file.
@@ -151,7 +178,7 @@ exec  2> >(tee -ia /post_install/output.log >& 2); \
 exec 19> /post_install/output.log; \
 export BASH_XTRACEFD="19"; \
 set -x; \
-wget -O /post_install/stage4.sh "http://james-netboot:8082/stage4.sh"; \
+wget -O /post_install/stage4.sh "http://netboot-server:8082/stage4.sh"; \
 chmod +x /post_install/stage4.sh; \
 /post_install/stage4.sh; \
 ' > /target/post_install/script_wrapper.sh; \
@@ -159,9 +186,9 @@ in-target bash /post_install/script_wrapper.sh; \
 echo "done running late_command"
 ```
 
-Remember to change `james-netboot` to the hostname of your netboot server.
+Remember to change `netboot-server` to the hostname of your netboot server.
 
-stage4 scripts can call other stage4 scripts by name using `source_stage4_script`
+stage4 scripts can call other stage4 scripts by name using `source_stage4_script <scriptname>` 
 
 they can also install stage4 packages using `install_package <packagename>`
 
@@ -254,8 +281,11 @@ The file `stage2.ipxe` can actually be named anything as long as it matches `sta
 Here's how they get defined:
 ```bash
 ############## this is the preamble generated by Netboot Studio #############
+set client-arch ${arch}
 set netboot-studio-server ${next-server}
 set stage-server http://${netboot-studio-server}:8082
+set iso-images ${stage-server}/iso
+set iso-images-nfs nfs://${netboot-studio-server}:/opt/NetbootStudio/iso
 set boot-images ${stage-server}/boot_images
 set boot-images-nfs-noproto ${netboot-studio-server}/opt/NetbootStudio/boot_images
 set boot-images-nfs nfs://${boot-images-nfs-noproto}
@@ -266,7 +296,7 @@ set wimboot-path ${boot-images}/wimboot
 ############## end preamble #############
 ```
 
-
+The above will be prepended to your ipxe script, and additional code to catch and report errors will be appended to the end.
 
 ## TODO
 NetbootStudio is incomplete, see the current TODO list: [TODO.md](docs/TODO.md)

@@ -5,4 +5,4 @@
 @REM set STAGE_SERVER="%s"
 @REM set NEXT_SCRIPT="%s"
 
-echo "not done yet, heres a var: %STAGE_SERVER%"
+echo "not implemented yet, heres a var: %STAGE_SERVER%"

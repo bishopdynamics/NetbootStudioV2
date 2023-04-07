@@ -1,12 +1,133 @@
 # Netboot Studio TODO List
 
+March 26, 2023
+
+
+
+Musings on rewriting of UI presentation layer
+* much more object orientation and polymorphism
+* object own their html elements
+* objects clean themselves up when requested
+
+March 23, 2023
+
+Can we do image maintenance tasks using dism and wine?
+  * add drivers
+  * install updates
+
+
+
+https://www.winehq.org/pipermail/wine-bugs/2016-September/450767.html
+```
+$ export WINEARCH=win32 WINEPREFIX=$HOME/.wine32
+$ winetricks -q dotnet452 wininet
+$ winecfg # set Windows version to 10
+$ wine adksetup.exe /features OptionId.DeploymentTools
+$ cd $WINEPREFIX/drive_c/Program\ Files/Windows\ Kits/10/Assessment\ and\
+Deployment\ Kit/Deployment\ Tools/x86/DISM
+$ wine dism.exe
+```
+
+
+https://www.winhelponline.com/blog/slipstream-windows-10-integrate-updates-setup-media-iso/
+
+```
+dism.exe /Get-WimInfo /wimFile:"D:\Win10ISO\sources\install.wim"
+dism.exe /image:"D:\Mounted-WIM" /Add-Package /PackagePath:"D:\v1709 updates"
+dism.exe /Unmount-wim /mountdir:"D:\Mounted-WIM" /commit
+```
+
+
+how to download updates:
+https://www.winhelponline.com/blog/download-update-wu-catalog-rss-using-any-browser/
+
+https://github.com/potatoqualitee/kbupdate
+
+https://github.com/aaronparker/LatestUpdate
+
+
+
+March 20, 2023
+
+* reject un-named taskss
+
+* rework "i just logged in" flow
+  * client list needs to be properly selected
+  * cool animation while connecting to broker and initializing data sources
+  * make sure to cleanup stuff when de-authed
+
+* need tasks to be retry-able (optionally edit input fields)
+
+* we need buttons in tasks pane
+  * cancel task
+  * clear task (deletes any temp folders), not available for running tasks
+  * clear all tasks (skips running)
+  * view (stream?) task logfile
+    * create a bespoke mqtt topic for this task, and publish each new line as they are appended to the logfile
+  * end-tasks should define these, not the parent class
+
+* Dynamic unattended config
+  * we support only 3 types of unattended configs: windows, debian/ubuntu, vmware
+  * based on image_type in metadata.yaml, for the assigned boot_image, render unattended.cfg from a common set of data
+  * new type of on-disk, or in-database config, storing a bunch of generic common keys, and also special keys only used by certain installers
+  * render all unattended.cfg from common set of data, different templates
+
+March 18, 2023
+
+New overall goal set:
+
+* move evrything over to user: netbootstudio
+* integrate with AD for auth
+  * login and check group membership to determine roles
+  * in settings, add fields for mapping groups to roles
+    * Admin - full control, including appliance manager
+    * Manager - can edit server-wide settings
+    * Creator - can create and modify files for netbooting and unattended
+    * Installer - can edit client settings for netbooting
+    * Viewer - can only view client status / dashboard
+* appliance manager for updates, status
+  * can appliance manager be the first-time installer too?
+    * we can elminate need to reboot by (re) starting needed services, loading modules
+    * what if we repurpose the debian liveimage scripts to create a ready-to-go debian installation, and distribute the vmdk?
+  * Update = stop & remove all existing containers, clone repo, run install script, deploy
+  * manage certificates
+  * Backups
+    * export database
+    * export all config files as single package (just zip everything)
+    * export boot images as a separate package
+    * auto-backup to NFS/SMB share?
+* improve support for Windows unattended
+  * add computer to domain
+  * install programs
+  * modify registry
+  * run powershell & cmd commands
+  * mount network paths
+  * add local user
+* Add more things to settings
+  * ipxe git repo
+* create boot image wizard
+  * ESX
+  * Windows from ISO
+  * Windows from ?? custom image builder?
+  * WinPE (or some kind of live image)
+  * Debian via web
+  * Debian via locally cached files
+  * Gparted
+  * Clonezilla
+  * Ubuntu Livecd
+  * Custom Debian Livecd
+  * Generic ISO parser
+    * detect various iso boot formats and attempt to make it bootable via netboot
+    * is there a UEFI tool that can boot iso files directly?
+
+
 Nov 27 NOtes
 
 Windows
   * join a domain
   * probably skip the rest, let group policy do it
 
-we can use dhcp overrides for the ipxe.efi file. by calling ipxe-arm64.efi, it will ignore arch and return arm64 version
+we can use dhcp overrides for the ipxe.bin file. by calling ipxe-arm64.efi, it will ignore arch and return arm64 version
 ctrl+b for troubleshooting menu seems broke. didnt work on NUC or on rockpi dec 2, 2021
 
 need to find a way to deliver stage4 output.log to server for troubleshooting
@@ -166,7 +287,7 @@ This is what we want to get done in order to show Joe at thanksgiving
     * also, need timeout for auto logout
   * need a way to backup all config, including database
   * manage files in tftp_root (upload / delete / rename)
-    * disallow/ignore reserved boot.scr.uimg and ipxe.efi
+    * disallow/ignore reserved boot.scr.uimg and ipxe.bin
 * ipxe should add vci and user_class info
 * we will need to translate a lot of the old v1 wizard data into our new holy info system
   * list of ubuntu/debian releases and urls

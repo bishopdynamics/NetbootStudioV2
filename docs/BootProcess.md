@@ -8,14 +8,14 @@
    2. NetbootStudio tftp server sees discover packet
       1. if a client entry does not exist yet, a stub entry is created. This is where arch info originates
       2. the new client entry will have ipxe_build set to the default for this client's arch
-   3. DHCP server responds, including the address of the tftp server, and a filename to request (always `ipxe.efi`)
+   3. DHCP server responds, including the address of the tftp server, and a filename to request (always `ipxe.bin`)
    4. Client requests the given filename from the given tftp server
 3. TFTP (stage0)
    1. TFTP server uses the Client's IP Address to query ARP to get MAC address, then uses MAC to get lookup client info from SQL table: netbootstudio/clients
       1. This includes `ipxe_build` which determines which set of prebuilt ipxe binaries to use
    2. The client entry is updated with this IP Address
-   3. The TFTP server will respond with `ipxe.efi` from whatever build is specified
-      1. if a file other than `ipxe.efi` was requested, it will look for it in tftp_root/
+   3. The TFTP server will respond with `ipxe.bin` from whatever build is specified
+      1. if a file other than `ipxe.bin` was requested, it will look for it in tftp_root/
 4. iPXE (with embedded script, aka stage1)
    1. request `stage2.ipxe` from the Stage2 service, including a bunch of client information in the request
       1. if this fails, fall back to a troubleshooting menu

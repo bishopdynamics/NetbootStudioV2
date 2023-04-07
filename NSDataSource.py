@@ -4,7 +4,7 @@ Netboot Studio Data Source
 """
 
 #    This file is part of Netboot Studio, a system for managing netboot clients
-#    Copyright (C) 2020-2021 James Bishop (james@bishopdynamics.com)
+#    Copyright (C) 2020-2023 James Bishop (james@bishopdynamics.com)
 import asyncio
 import json
 import logging
@@ -19,7 +19,7 @@ class NSDataSource:
     # for a consumer, the_function is called with the new value if the value changes
     #   a consumer can provide None as the_function, to not get notified (use .get_value() instead)
 
-    def __init__(self, config, paths, loop, name, source_type, the_function=None, scan_cycle=1):
+    def __init__(self, config, paths, loop, name, source_type, the_function=None, scan_cycle=4):
         self.config = config
         self.paths = paths
         self.loop = loop

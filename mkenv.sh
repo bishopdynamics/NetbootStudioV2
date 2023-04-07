@@ -3,7 +3,7 @@
 #  takes one flag, the name for virtualenv
 
 #    This file is part of Netboot Studio, a system for managing netboot clients
-#    Copyright (C) 2020 James Bishop (james@bishopdynamics.com)
+#    Copyright (C) 2020-2023 James Bishop (james@bishopdynamics.com)
 
 ENV_FOLDER="venv"
 PYTHON_VERSION="python3"
@@ -52,6 +52,7 @@ pip install -r requirements.txt || {
   deactivate
   exit 1
 }
+
 
 deactivate
 

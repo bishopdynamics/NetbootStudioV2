@@ -24,7 +24,7 @@ echo ""
 #       for now, the standard arm64 ipxe binary works fine for everything we are doing
 # setenv board_specific_bootfile /ipxe/ipxe-${cpu}-${vendor}-${board}.efi
 # setenv cpu_type_bootfile /ipxe/ipxe-${cpu}-efi.efi
-#setenv generic_bootfile /ipxe.efi
+#setenv generic_bootfile /ipxe.bin
 #setenv bootfile ${generic_bootfile}
 
 # dump a bunch of vars for fun

@@ -1,30 +1,28 @@
 // utility functions
 
-// linter options
-//@ts-check
-/*jshint esversion: 6 */
 
-
-function navigate_to_url(url){
+function navigate_to_url(url) {
     // abstraction, so that we can change approach later if desired
     window.location.href = url;
 }
 
-function download_a_file(url, filename){
+function download_a_file(url, filename) {
     // given url and filename, cause that url to be downloaded as that filename, as if the user had clicked a link
-	let link = document.createElement('a');
-	link.setAttribute('download', filename);
-	link.href = url;
-	document.body.appendChild(link);
-	link.click();
-	link.remove();
+    const link = document.createElement('a');
+    link.setAttribute('download', filename);
+    link.href = url;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
 }
 
-function uuid4(){
+function uuid4() {
     // generate a uuid4 string for use as ids
     // matches format used in backend
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+        // const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
         return v.toString(16);
     });
 }
@@ -49,10 +47,10 @@ function validateJSON(str) {
  * @return {string} new string
  */
 function camelCase(str) {
-  return str.replace(/(\w)(\w*)/g,
-      function(g0, g1, g2) {
-        return g1.toUpperCase() + g2.toLowerCase();
-      });
+    return str.replace(/(\w)(\w*)/g,
+        function(g0, g1, g2) {
+            return g1.toUpperCase() + g2.toLowerCase();
+        });
 }
 
 /**
@@ -61,14 +59,14 @@ function camelCase(str) {
  * @return {Array} an array of key names
  */
 function getKeyNames(thisobject) {
-  // returns an array of strings, corresponding to the first level key names in given object
-  const options = [];
-  for (const key in thisobject) {
-    if (Object.prototype.hasOwnProperty.call(thisobject, key)) {
-      options.push(key);
+    // returns an array of strings, corresponding to the first level key names in given object
+    const options = [];
+    for (const key in thisobject) {
+        if (Object.prototype.hasOwnProperty.call(thisobject, key)) {
+            options.push(key);
+        }
     }
-  }
-  return options;
+    return options;
 }
 
 /**
@@ -84,7 +82,7 @@ function setSelectBoxByValue(select_element, value) {
             found_option = true;
         }
     }
-    if (found_option !== true){
+    if (found_option !== true) {
         // if we cant find that option, just select the first one
         console.warn('could not find option with value: ' + value + ', defaulting to first option')
         select_element.options[0].selected = true;
@@ -107,9 +105,8 @@ function getSelectBoxOptionIndexFromValue(select_element, value) {
 }
 
 // strip slashes from input string
-function strip_slashes(inputstring){
-	let part1 = inputstring.replaceAll('/', '');
-	return part1.replaceAll('\\', '');
+function strip_slashes(inputstring) {
+    return inputstring.replaceAll('/', '').replaceAll('\\', '');
 }
 
 // find the first data source in register and return it
@@ -175,7 +172,7 @@ class NSMessage {
     }
     get_key(key) {
         let _value = null;
-        try{
+        try {
             _value = this._data[key];
         } catch (ex) {
             console.error('Exception while getting key: ' + key + ', ex: ' + ex);

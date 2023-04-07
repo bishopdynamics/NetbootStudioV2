@@ -1,0 +1,13 @@
+
+Current list of values for image_type in metadata.yaml for boot images
+
+These image types are used to determine what kind of unattended.cfg to serve this client
+
+vmware-esx-6: VMware ESXi installer 6.x thru 8.x
+windows-10: Windows 8/10/11 installer
+windows-7: Windows 7 installer
+windows-vista: Windows Vista installer
+windows-xp: Windows XP installer
+udebian-webinstaller: Debian 7+ webinstaller
+ubuntu-webinstaller: Ubuntu 16.x and up webinstaller
+generic: some generic bootable thing. cant auto-generate unattended.cfg
