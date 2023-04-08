@@ -109,6 +109,12 @@ function set_folder_perms () {
   chmod 755 "$targetdir" || bail "failed to chmod dir: $targetdir"
 }
 
+function set_file_perms () {
+  local targetfile="$1"
+  chown $SERVICE_USER:$SERVICE_GROUP "$targetfile" || bail "failed to chown file: $targetfile"
+  chmod 755 "$targetfile" || bail "failed to chmod file: $targetfile"
+}
+
 function create_own_folder () {
   local targetdirs="$*"
   echo "creating dirs: $targetdirs"
@@ -168,6 +174,18 @@ function create_service_user () {
   copy_skel_file ".bash_logout"
 }
 
+function download_file() {
+  local fileurl="$1"
+  local localfile="$2"
+  
+  if [ ! -f "$localfile" ]; then
+    takenote "Downloading: $fileurl"
+    echo "  downloading..."
+    wget -q -O "$localfile" "$fileurl" || bail "failed to download $fileurl"
+    set_file_perms "$localfile"
+  fi
+}
+
 ######################################################  Actual work starts here  ######################################################
 
 announce "Taking over this server. Resistance is futile. You ($(hostname)) will be assimilated."
@@ -202,12 +220,15 @@ create_own_folder "${NS_CONFIGDIR}/stage1_files" "${NS_CONFIGDIR}/stage4" "${NS_
 create_own_folder "${NS_CONFIGDIR}/ipxe_builds" "${NS_CONFIGDIR}/wimboot_builds" "${NS_CONFIGDIR}/uboot_binaries"
 create_own_folder "${NS_CONFIGDIR}/packages" "${NS_CONFIGDIR}/tftp_root" "${NS_CONFIGDIR}/iso" "${NS_CONFIGDIR}/temp"
 
+# download latest wimboot binaries
+download_file "https://github.com/ipxe/wimboot/releases/latest/download/wimboot" "${NS_CONFIGDIR}/boot_images/wimboot"
+download_file "https://github.com/ipxe/wimboot/releases/latest/download/wimboot.i386" "${NS_CONFIGDIR}/boot_images/wimboot.i386"
 
+# generate config files
 ./bin/generate_config.sh || bail "failed go generate netbootstudio config file!"
 ./bin/generate_nfs_config.sh || bail "failed to generate nfs config file!"
 ./bin/generate_docker_compose.sh || bail "failed to generate docker compose file!"
 ./bin/generate_broker_config.sh || bail "failed to generate broker config file!"
-
 
 # ensure ownership and permissions recursively
 set_folder_perms "${LOCAL_DIR}"
