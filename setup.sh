@@ -224,6 +224,13 @@ create_own_folder "${NS_CONFIGDIR}/packages" "${NS_CONFIGDIR}/tftp_root" "${NS_C
 download_file "https://github.com/ipxe/wimboot/releases/latest/download/wimboot" "${NS_CONFIGDIR}/boot_images/wimboot"
 download_file "https://github.com/ipxe/wimboot/releases/latest/download/wimboot.i386" "${NS_CONFIGDIR}/boot_images/wimboot.i386"
 
+# copy default settings if none exists
+if [ ! -f "${NS_CONFIGDIR}/settings.json" ]; then
+  takenote "no settings.json found, copying default-settings.json"
+  cp "default-settings.json" "${NS_CONFIGDIR}/settings.json"
+  set_file_perms "${NS_CONFIGDIR}/settings.json"
+fi
+
 # generate config files
 ./bin/generate_config.sh || bail "failed go generate netbootstudio config file!"
 ./bin/generate_nfs_config.sh || bail "failed to generate nfs config file!"

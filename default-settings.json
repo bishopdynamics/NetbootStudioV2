@@ -1,0 +1,14 @@
+{
+    "boot_image": "standby_loop",
+    "boot_image_once": false,
+    "unattended_config": "blank.cfg",
+    "uboot_script": "default",
+    "do_unattended": false,
+    "ipxe_build_arm64": "",
+    "ipxe_build_amd64": "",
+    "ipxe_build_bios32": "",
+    "ipxe_build_bios64": "",
+    "stage4": "none",
+    "debian_mirror": "http://deb.debian.org/debian",
+    "ubuntu_mirror": "http://archive.ubuntu.com/ubuntu"
+}
